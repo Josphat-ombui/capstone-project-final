@@ -94,9 +94,9 @@ export function OverviewPage({ data }: { data: DashboardData }) {
   return (
     <>
       <PageHeader
-        eyebrow="Executive summary"
-        title="Batch quality, reliability and commercial results"
-        description={`${formatInteger(summary.rows.batches)} batches, ${formatInteger(summary.rows.sales)} sales lines and ${formatInteger(summary.rows.inventory)} inventory records, 2007 to 2026.`}
+        eyebrow="Batch quality and machine reliability"
+        title="Where batches fail, what drives it, and what to act on first"
+        description={`This dashboard turns ${formatInteger(summary.rows.batches)} batch records, ${formatInteger(summary.rows.sales)} sales lines and ${formatInteger(summary.rows.inventory)} stock movements into one view. It shows which batches need a check before release, which machines and process readings need attention, and where pricing, credit and demand decisions are supported by the data. ${metCount} of ${targetRows.length} project targets are met. The limits are listed at the end of this page.`}
         aside={<StatusPill tone={metCount === targetRows.length ? "good" : "warn"}>{`${metCount} of ${targetRows.length} targets met`}</StatusPill>}
       />
 
