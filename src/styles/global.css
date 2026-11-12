@@ -1494,3 +1494,9 @@ body::before, .app::before { background: none !important; }
 .limits-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; }
 .limits-box > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--text); }
 .limits-box ol { margin: 12px 0 0; padding-left: 22px; display: grid; gap: 8px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+
+/* Full-width cards in the section grid: any card that holds a data table spans the whole row. */
+.grid > .card:has(.table-wrap),
+.grid > .span-all { grid-column: 1 / -1; }
+.grid > .card:has(.table-wrap) table th:first-child,
+.grid > .card:has(.table-wrap) table td:first-child { min-width: 48px; }

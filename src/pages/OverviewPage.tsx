@@ -127,10 +127,11 @@ export function OverviewPage({ data }: { data: DashboardData }) {
       </Section>
 
       <Section title="Master summary">
-        <div className="section-actions no-print">
-          <Link className="btn" to="/print">Open printable full summary</Link>
-        </div>
-        <Card title="Questions, methods and results" subtitle="One row per question, matching the question panel on each page">
+        <Card
+          title="Questions, methods and results"
+          subtitle="One row per question, matching the question panel on each page"
+          actions={<Link className="btn" to="/print">Open printable full summary</Link>}
+        >
           <DataTable rows={masterRows} columns={masterColumns} fileName="master-summary.csv" pageSize={11} emptyMessage="No questions to show." />
         </Card>
       </Section>
