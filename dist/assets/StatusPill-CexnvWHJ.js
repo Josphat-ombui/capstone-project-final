@@ -1,0 +1,1 @@
+import{s as e}from"./data-BC-7yzsm.js";var t=e();function n({tone:e,children:n}){return(0,t.jsx)(`span`,{className:`pill pill-${e}`,children:n})}export{n as t};
