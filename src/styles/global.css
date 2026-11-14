@@ -1500,3 +1500,136 @@ body::before, .app::before { background: none !important; }
 .grid > .span-all { grid-column: 1 / -1; }
 .grid > .card:has(.table-wrap) table th:first-child,
 .grid > .card:has(.table-wrap) table td:first-child { min-width: 48px; }
+
+/* ---- Executive layout: larger charts and KPIs, less text, clear sections ---- */
+.content { padding: 24px 36px 56px; }
+.page-title { font-size: clamp(28px, 3.2vw, 40px); }
+.page-description { font-size: 15px; max-width: 880px; }
+.section { gap: 18px; }
+.section + .section { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 8px; }
+.section-heading h2 { font-size: 24px; }
+.section-heading p { display: none; }
+.grid { gap: 20px; }
+.card { padding: 22px 24px 20px; }
+.card-title { font-size: 18px; }
+.card-subtitle { font-size: 13px; }
+.card-body { gap: 10px; }
+.card-caption { display: none; }
+
+/* Chart cards take a full half row on wide screens so the visual dominates. */
+@media (min-width: 1100px) {
+  .grid > .card:has(.chart):not(:has(.table-wrap)) { grid-column: span 2; }
+}
+.chart { height: 360px; }
+.chart-tall { height: 440px; }
+.chart-donut .recharts-responsive-container { height: 300px; }
+
+/* KPI cards: bigger value, icon and padding. */
+.kpi { padding: 24px; gap: 18px; border-radius: 18px; }
+.kpi-icon { width: 56px; height: 56px; border-radius: 16px; }
+.kpi-icon svg { width: 26px; height: 26px; }
+.kpi-label { font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+.kpi-value { font-size: 40px; line-height: 1.1; margin-top: 6px; }
+.kpi-hint { font-size: 13px; }
+.kpi-row { gap: 18px; }
+
+/* Questions: answer first, large and readable; details stay folded. */
+.question-card { padding: 22px 24px; }
+.question-title { font-size: 20px; }
+.question-answer { font-size: 18px; font-weight: 600; margin: 8px 0 14px; }
+.question-number { font-size: 13px; }
+.tag { font-size: 13px; }
+
+/* Summary blocks: quieter, folded by default. */
+.summary-box { margin-bottom: 4px; }
+.summary-box > summary { font-size: 15px; }
+
+/* Tables: larger type for executive reading. */
+.table-wrap table { font-size: 15px; }
+.table-wrap table th { font-size: 13px; }
+
+/* Targets and bullets: thicker and more visible. */
+.bullet { height: 16px; }
+.target-head { font-size: 16px; }
+.target-note { font-size: 13px; }
+
+/* Question panels sit two to a row on wide screens, so charts appear higher on the page. */
+@media (min-width: 1100px) {
+  .question-stack:not(.print-master) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+}
+.question-card { padding: 18px 22px; }
+.question-title { font-size: 17px; }
+.question-answer { font-size: 16px; margin: 6px 0 0; }
+
+/* Keep KPI values on one line: scale the number to the card width. */
+.kpi-value { white-space: nowrap; font-size: clamp(26px, 2.3vw, 38px); }
+.kpi-text { min-width: 0; overflow: hidden; }
+.grid:has(> .kpi) { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* ---- Phone layout (up to 760px wide) ---- */
+@media (max-width: 760px) {
+  .app-shell { display: block; }
+  .sidebar { position: sticky; top: 0; z-index: 30; padding: 10px 12px 0; gap: 8px; }
+  .brand { padding: 0 2px 2px; gap: 10px; }
+  .brand-mark { width: 34px; height: 34px; font-size: 13px; }
+  .brand-sub, .sidebar-footer { display: none; }
+  .nav-list {
+    display: flex; flex-direction: row; gap: 6px; overflow-x: auto; padding: 0 0 10px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .nav-list::-webkit-scrollbar { display: none; }
+  .nav-list > li { flex: none; }
+  .nav-link { white-space: nowrap; padding: 8px 12px; font-size: 13px; gap: 8px; border-radius: 999px; }
+  .nav-link svg { width: 16px; height: 16px; }
+
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 14px; position: static; }
+  .topbar-status { font-size: 12px; flex-wrap: wrap; gap: 6px; }
+  .topbar-status > span:last-child { display: none; }
+  .topbar-actions { width: 100%; justify-content: space-between; }
+  .topbar-actions .btn, .topbar-actions button { font-size: 13px; padding: 8px 12px; white-space: nowrap; }
+
+  .content { padding: 16px 14px 48px; }
+  .filter-bar { margin: 0 0 16px; }
+  .filter-bar .filter-grid, .filter-bar > div:first-child { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .filter-bar select { width: 100%; }
+  .filter-bar button { width: 100%; }
+
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .page-title { font-size: 26px; line-height: 1.2; }
+  .eyebrow { font-size: 12px; }
+  .page-description { font-size: 14px; max-width: none; }
+
+  .section + .section { padding-top: 24px; }
+  .section-heading h2 { font-size: 20px; }
+  .grid { grid-template-columns: 1fr; gap: 14px; }
+  .grid:has(> .kpi) { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kpi { padding: 16px; gap: 12px; flex-direction: column; }
+  .kpi-icon { width: 40px; height: 40px; border-radius: 12px; }
+  .kpi-icon svg { width: 20px; height: 20px; }
+  .kpi-value { font-size: 24px; }
+  .kpi-label { font-size: 11px; }
+  .kpi-hint { font-size: 12px; }
+
+  .card { padding: 16px; border-radius: 16px; }
+  .card-title { font-size: 16px; }
+  .chart { height: 240px; }
+  .chart-tall { height: 280px; }
+  .chart-donut .recharts-responsive-container { height: 220px; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { font-size: 13px; }
+
+  .question-stack { gap: 12px; }
+  .question-card { padding: 16px; }
+  .question-answer { font-size: 15px; }
+  .question-grid { grid-template-columns: 1fr; }
+
+  .summary-box > summary { font-size: 14px; }
+  .section-actions { flex-wrap: wrap; }
+}
+
+@media (max-width: 760px) {
+  .filter-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .filter-bar > * { min-width: 0; width: 100%; }
+  .filter-bar select, .filter-bar label { width: 100%; }
+  .filter-bar button { grid-column: 1 / -1; width: 100%; }
+}

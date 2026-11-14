@@ -17,13 +17,12 @@ function QuestionCard({ question }: { question: Question }) {
 
       <p className="question-answer">{question.findings[0]}</p>
 
-      <div className="question-tags">
-        <span className="tag">Target: {question.target}</span>
-        <span className="tag">{question.method}</span>
-      </div>
-
       <details className="question-details">
         <summary>Details</summary>
+        <div className="question-tags">
+          <span className="tag">Target: {question.target}</span>
+          <span className="tag">{question.method}</span>
+        </div>
         <p className="plain-words">{question.plainWords}</p>
         <dl className="question-grid">
           <div>

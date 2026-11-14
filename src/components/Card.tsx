@@ -5,7 +5,7 @@ interface CardProps {
   subtitle?: string;
   /** Kept for compatibility with existing pages. Not shown, to keep the layout quiet. */
   kind?: string;
-  /** One short line under the chart on how to read it. */
+  /** Kept for compatibility. Reading notes are no longer shown, so charts carry the message. */
   caption?: string;
   actions?: ReactNode;
   className?: string;
@@ -13,7 +13,7 @@ interface CardProps {
 }
 
 /** A panel with a title, an optional subtitle, the content and an optional reading note. */
-export function Card({ title, subtitle, caption, actions, className = "", children }: CardProps) {
+export function Card({ title, subtitle, actions, className = "", children }: CardProps) {
   return (
     <section className={`card ${className}`}>
       <header className="card-header">
@@ -24,7 +24,6 @@ export function Card({ title, subtitle, caption, actions, className = "", childr
         {actions && <div className="card-actions">{actions}</div>}
       </header>
       <div className="card-body">{children}</div>
-      {caption && <p className="card-caption">{caption}</p>}
     </section>
   );
 }
