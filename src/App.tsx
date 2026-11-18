@@ -8,6 +8,7 @@ import { FilterBar } from "./components/FilterBar";
 import { useTheme } from "./lib/theme";
 
 // Each page is its own chunk, so the first screen loads quickly.
+const ExecutivePage = lazy(() => import("./pages/ExecutivePage").then((module) => ({ default: module.ExecutivePage })));
 const OverviewPage = lazy(() => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage })));
 const BatchAlertsPage = lazy(() => import("./pages/BatchAlertsPage").then((module) => ({ default: module.BatchAlertsPage })));
 const EquipmentPage = lazy(() => import("./pages/EquipmentPage").then((module) => ({ default: module.EquipmentPage })));
@@ -55,11 +56,14 @@ function Dashboard({ data, theme, onToggleTheme }: { data: DashboardData; theme:
     <DashboardContext.Provider value={data}>
       <FilterProvider options={options}>
         <HashRouter>
-          <Layout mode={data.meta.mode} generatedAt={data.meta.generatedAt} theme={theme} onToggleTheme={onToggleTheme}>
+          <Routes>
+            <Route path="/" element={<Suspense fallback={null}><ExecutivePage data={data} /></Suspense>} />
+            <Route path="*" element={
+              <Layout mode={data.meta.mode} generatedAt={data.meta.generatedAt} theme={theme} onToggleTheme={onToggleTheme}>
             <PageFilters />
             <Suspense fallback={<div className="state-screen" role="status"><div className="spinner" aria-hidden="true" /><p>Loading page</p></div>}>
               <Routes>
-                <Route path="/" element={<OverviewPage data={data} />} />
+                <Route path="/summary" element={<OverviewPage data={data} />} />
                 <Route path="/exploration" element={<ExplorationPage data={data} />} />
                 <Route path="/print" element={<PrintSummaryPage data={data} />} />
                 <Route path="/batch-alerts" element={<BatchAlertsPage data={data} />} />
@@ -73,6 +77,8 @@ function Dashboard({ data, theme, onToggleTheme }: { data: DashboardData; theme:
               </Routes>
             </Suspense>
           </Layout>
+            } />
+          </Routes>
         </HashRouter>
       </FilterProvider>
     </DashboardContext.Provider>

@@ -1,0 +1,1 @@
+var e={recall:.8,precision:.19,rocAuc:.8,forecastGainPct:15,cpk:1.33,hhiThreshold:1500};export{e as t};

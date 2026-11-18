@@ -5,7 +5,8 @@ import type { ThemeName } from "../lib/theme";
 import { formatTimestamp } from "../lib/format";
 
 const navigation = [
-  { to: "/", label: "Executive summary", icon: LayoutDashboard },
+  { to: "/", label: "Executive view", icon: LayoutDashboard },
+  { to: "/summary", label: "Analyst summary", icon: LayoutDashboard },
   { to: "/exploration", label: "Data exploration", icon: Search },
   { to: "/batch-alerts", label: "Batch alerts", icon: ShieldAlert },
   { to: "/predictor", label: "Batch predictor", icon: Calculator },
