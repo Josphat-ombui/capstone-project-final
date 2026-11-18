@@ -3,7 +3,7 @@ import { type DashboardData } from "../lib/data";
 import { formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { type BatchForm, predict, typicalForm } from "../lib/predictor";
-import { Bars, Kpi, Page, Panel, type Tone } from "../components/Exec";
+import { Bars, Page, Panel, Ring, type Tone } from "../components/Exec";
 
 export function PredictorPage({ data }: { data: DashboardData }) {
   const spec = data.predictor;
@@ -28,7 +28,7 @@ export function PredictorPage({ data }: { data: DashboardData }) {
           ))}
         </div>
         <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
-          <Kpi hero label="Failure chance" value={`${formatNumber(p.failureChance * 100, 1)}%`} sub={p.riskLevel} tone={tone} />
+          <div className={`x-card x-gauge x-${tone}`}><Ring value={p.failureChance / 0.15} target={data.summary.failure_rate_pct / 100 / 0.15} tone={tone} size={220} text={`${formatNumber(p.failureChance * 100, 1)}%`} /><span>{p.riskLevel} risk (tick = average batch)</span></div>
           {p.factors.some((f) => Math.abs(f.effect) > 0.005) && <Panel title="What moves it"><Bars horizontal data={p.factors.slice(0, 6).map((f) => ({ name: f.label, value: Number(f.effect.toFixed(2)) }))} fmt={(v) => formatNumber(v, 2)} colorOf={(d) => (d.value > 0 ? palette.bad : palette.good)} /></Panel>}
         </div>
       </div>

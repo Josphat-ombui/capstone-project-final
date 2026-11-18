@@ -1,25 +1,15 @@
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { formatFraction, formatKesMillions, formatNumber } from "../lib/format";
+import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
-import { Page } from "../components/Exec";
+import { Bars, Charts, Donut, Kpi, Page, Panel } from "../components/Exec";
 
 type Tone = "good" | "warn" | "bad" | "accent";
 
 const rate = (m: { batches: number; failures: number }[]) =>
   (m.reduce((a, b) => a + b.failures, 0) / Math.max(1, m.reduce((a, b) => a + b.batches, 0))) * 100;
-
-function Kpi({ label, value, sub, tone, hero }: { label: string; value: string; sub: string; tone: Tone; hero?: boolean }) {
-  return (
-    <div className={`x-kpi x-${tone}${hero ? " x-hero" : ""}`}>
-      <span className="x-label">{label}</span>
-      <strong className="x-value">{value}</strong>
-      <span className="x-sub">{sub}</span>
-    </div>
-  );
-}
 
 function Trend({ label, value, up, bad }: { label: string; value: string; up: boolean; bad: boolean }) {
   const Icon = up ? ArrowUpRight : ArrowDownRight;
@@ -59,6 +49,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   const watch = tableRows(data, "equipment_reliability").filter((r) => textCell(r, "priority").startsWith("Watch")).length;
   const unresolved = tableRows(data, "reconciliation").filter((r) => textCell(r, "status") === "Differs").length;
 
+  const secs = ((data.explore as unknown as { category_counts: Record<string, { level: string; failures: number }[]> }).category_counts.manufacturing_section) ?? [];
   const rows = [
     { label: "Recall", v: chosen.recall, t: targets.recall, d: formatFraction(chosen.recall, 0), td: formatFraction(targets.recall, 0) },
     { label: "Precision", v: chosen.precision, t: targets.precision, d: formatFraction(chosen.precision, 0), td: formatFraction(targets.precision, 0) },
@@ -72,11 +63,11 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   return (
     <Page title="Batch quality" status={health as { tone: Tone; text: string }}>
       <section className="x-kpis">
-        <Kpi hero label="Batch failure rate" value={`${formatNumber(now, 2)}%`} sub={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts vs prior 12 months`} tone={delta > 0.1 ? "bad" : "good"} />
-        <Kpi label="Targets met" value={`${met}/${rows.length}`} sub="model and forecast" tone={met === rows.length ? "good" : "warn"} />
-        <Kpi label="Sections at Cpk 1.33" value={`${capable}/${caps.length}`} sub={`worst ${formatNumber(numberCell(worst, "cpk"), 2)}`} tone={capable ? "good" : "bad"} />
+        <Kpi hero spark={series.map((p) => p.rate)} label="Batch failure rate" value={`${formatNumber(now, 2)}%`} sub={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts vs prior 12 months`} tone={delta > 0.1 ? "bad" : "good"} />
+        <Kpi label="Targets met" value={`${met}/${rows.length}`} sub="model and forecast" ring={{ value: met / rows.length }} tone={met === rows.length ? "good" : "warn"} />
+        <Kpi label="Sections at Cpk 1.33" value={`${capable}/${caps.length}`} sub={`worst ${formatNumber(numberCell(worst, "cpk"), 2)}`} ring={{ value: capable / caps.length }} tone={capable ? "good" : "bad"} />
         <Kpi label="Discount cap, KES" value={`+${formatNumber(profit("none") / 1e6, 0)} m`} sub={`down to ${formatNumber(profit("all") / 1e6, 0)} m`} tone="accent" />
-        <Kpi label="Open credit, KES" value={`${formatNumber(open / 1e9, 1)} bn`} sub={`${formatFraction(overYear / open, 0)} over 1 year`} tone={creditFail ? "bad" : "good"} />
+        <Kpi label="Open credit, KES" value={`${formatNumber(open / 1e9, 1)} bn`} sub={`${formatFraction(overYear / open, 0)} over 1 year`} ring={{ value: overYear / open }} tone={creditFail ? "bad" : "good"} />
       </section>
 
       <section className="x-trends">
@@ -112,6 +103,11 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
           </div>
         </div>
       </section>
+
+      <Charts>
+        <Panel title="Failures by section"><Donut data={secs.map((r) => ({ name: r.level, value: r.failures }))} center={`${formatInteger(secs.reduce((a, r) => a + r.failures, 0))}`} /></Panel>
+        <Panel title="Cpk by section (target 1.33)"><Bars data={caps.map((r) => ({ name: textCell(r, "manufacturing_section"), value: Number(numberCell(r, "cpk").toFixed(2)) }))} fmt={(v) => formatNumber(v, 2)} refValue={targets.cpk} colorOf={(d) => (d.value >= targets.cpk ? palette.good : palette.bad)} /></Panel>
+      </Charts>
 
       <section className="x-insights">
         <div className="x-ins x-accent"><span>Opportunity</span><p>5% discount cap: up to {formatKesMillions(profit("none"), 0)}. Pilot in one branch.</p></div>
