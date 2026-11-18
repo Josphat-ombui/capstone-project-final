@@ -1,11 +1,10 @@
-import { Link } from "react-router-dom";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
 import { formatFraction, formatKesMillions, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
-import "../styles/executive.css";
+import { Page } from "../components/Exec";
 
 type Tone = "good" | "warn" | "bad" | "accent";
 
@@ -71,13 +70,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   const health = creditFail || capable === 0 ? { tone: "bad", text: "Needs attention" } : met === rows.length ? { tone: "good", text: "On track" } : { tone: "warn", text: "Watch" };
 
   return (
-    <div className="exec">
-      <header className="x-head">
-        <h1>Batch quality</h1>
-        <span className={`x-pill x-${health.tone}`}>{health.text}</span>
-        <Link className="x-link" to="/summary">Detail →</Link>
-      </header>
-
+    <Page title="Batch quality" status={health as { tone: Tone; text: string }}>
       <section className="x-kpis">
         <Kpi hero label="Batch failure rate" value={`${formatNumber(now, 2)}%`} sub={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts vs prior 12 months`} tone={delta > 0.1 ? "bad" : "good"} />
         <Kpi label="Targets met" value={`${met}/${rows.length}`} sub="model and forecast" tone={met === rows.length ? "good" : "warn"} />
@@ -131,6 +124,6 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
         {watch > 0 && <span className="x-alert">{watch} machines on watch</span>}
         {unresolved > 0 && <span className="x-alert">{unresolved} results unreconciled</span>}
       </footer>
-    </div>
+    </Page>
   );
 }

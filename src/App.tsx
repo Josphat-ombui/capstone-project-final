@@ -1,15 +1,13 @@
 import { Suspense, lazy, useMemo } from "react";
-import { HashRouter, Route, Routes, useLocation } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { DashboardContext, useDashboardData, type DashboardData } from "./lib/data";
 import { buildFilterOptions } from "./lib/filters";
 import { FilterProvider } from "./components/FilterContext";
-import { FilterBar } from "./components/FilterBar";
 import { useTheme } from "./lib/theme";
 
 // Each page is its own chunk, so the first screen loads quickly.
 const ExecutivePage = lazy(() => import("./pages/ExecutivePage").then((module) => ({ default: module.ExecutivePage })));
-const OverviewPage = lazy(() => import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage })));
 const BatchAlertsPage = lazy(() => import("./pages/BatchAlertsPage").then((module) => ({ default: module.BatchAlertsPage })));
 const EquipmentPage = lazy(() => import("./pages/EquipmentPage").then((module) => ({ default: module.EquipmentPage })));
 const ProcessControlPage = lazy(() => import("./pages/ProcessControlPage").then((module) => ({ default: module.ProcessControlPage })));
@@ -22,11 +20,6 @@ const PrintSummaryPage = lazy(() => import("./pages/PrintSummaryPage").then((mod
 const ExplorationPage = lazy(() => import("./pages/ExplorationPage").then((module) => ({ default: module.ExplorationPage })));
 
 /** The filter bar applies to the failure and commercial pages only, so it is hidden where it would do nothing. */
-function PageFilters() {
-  const { pathname } = useLocation();
-  if (pathname === "/predictor" || pathname === "/exploration" || pathname === "/print") return null;
-  return <FilterBar />;
-}
 
 /** Shown while the exported data loads. */
 function LoadingScreen() {
@@ -57,13 +50,12 @@ function Dashboard({ data, theme, onToggleTheme }: { data: DashboardData; theme:
       <FilterProvider options={options}>
         <HashRouter>
           <Routes>
-            <Route path="/" element={<Suspense fallback={null}><ExecutivePage data={data} /></Suspense>} />
             <Route path="*" element={
               <Layout mode={data.meta.mode} generatedAt={data.meta.generatedAt} theme={theme} onToggleTheme={onToggleTheme}>
-            <PageFilters />
             <Suspense fallback={<div className="state-screen" role="status"><div className="spinner" aria-hidden="true" /><p>Loading page</p></div>}>
               <Routes>
-                <Route path="/summary" element={<OverviewPage data={data} />} />
+                <Route path="/" element={<ExecutivePage data={data} />} />
+                <Route path="/summary" element={<Navigate to="/" replace />} />
                 <Route path="/exploration" element={<ExplorationPage data={data} />} />
                 <Route path="/print" element={<PrintSummaryPage data={data} />} />
                 <Route path="/batch-alerts" element={<BatchAlertsPage data={data} />} />
