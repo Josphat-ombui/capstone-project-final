@@ -237,3 +237,32 @@ export function Matrix2({ cells }: { cells: { label: string; value: number; tone
     </div>
   );
 }
+
+export function Score({ rows }: { rows: { label: string; result: string; goal: string; met: boolean }[] }) {
+  return (
+    <div className="x-score">
+      {rows.map((r) => (
+        <div key={r.label}><span>{r.label}</span><strong>{r.result}</strong><em>{r.goal}</em><b className={r.met ? "x-met" : "x-miss"}>{r.met ? "Met" : "Missed"}</b></div>
+      ))}
+    </div>
+  );
+}
+
+export function Steps({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="x-card">
+      <h2>{title}</h2>
+      <ol className="x-steps">{items.map((t, i) => <li key={t}><b>{i + 1}</b><span>{t}</span></li>)}</ol>
+    </div>
+  );
+}
+
+/** Proportional timeline bar, e.g. learn / tune / test periods. */
+export function Split({ parts }: { parts: { name: string; sub: string; weight: number }[] }) {
+  const shade = ["#C7D2FE", "#818CF8", palette.accent];
+  return (
+    <div className="x-split-bar">
+      {parts.map((p, i) => <div key={p.name} style={{ flex: p.weight, background: shade[i % 3], color: i === 0 ? "#1e1b4b" : "#fff" }}><strong>{p.name}</strong><span>{p.sub}</span></div>)}
+    </div>
+  );
+}

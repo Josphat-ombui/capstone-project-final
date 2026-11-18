@@ -21,8 +21,8 @@ export function BatchAlertsPage({ data }: { data: DashboardData }) {
   return (
     <Page title="Batch alerts" status={miss ? { tone: "warn", text: "Triage aid only" } : { tone: "good", text: "On target" }}>
       <Kpis>
-        <Kpi label="Batches flagged" value={formatFraction(t.flag_rate, 0)} ring={{ value: t.flag_rate }} tone="bad" />
-        <Kpi label="Failures caught" value={formatFraction(t.recall, 0)} ring={{ value: t.recall, target: targets.recall }} tone="good" />
+        <Kpi label="Batches flagged" value={formatFraction(t.flag_rate, 0)} sub={`${formatInteger(c.alerts_on_test)} of ${formatInteger(t.tp + t.fp + t.fn + t.tn)}`} ring={{ value: t.flag_rate }} tone="bad" />
+        <Kpi label="Failures caught" value={formatFraction(t.recall, 0)} sub={`${t.tp} of ${t.tp + t.fn}`} ring={{ value: t.recall, target: targets.recall }} tone="good" />
         <Kpi label="Precision" value={formatFraction(t.precision, 0)} ring={{ value: t.precision, target: targets.precision }} tone="bad" />
         <Kpi label="ROC-AUC" value={formatNumber(t.roc_auc, 2)} ring={{ value: t.roc_auc, target: targets.rocAuc }} tone="bad" />
         <Kpi label="High tier lift" value={`${formatNumber(lift, 1)}x`} sub={`${formatFraction(cf, 0)} flagged, ${formatFraction(cc, 0)} caught`} tone="accent" />
@@ -30,7 +30,7 @@ export function BatchAlertsPage({ data }: { data: DashboardData }) {
       <Charts cols={3}>
         <Panel title="ROC curve (dashed = chance)"><Curve points={roc} /></Panel>
         <Panel title="Failures caught as batches are reviewed"><Curve points={gains} /></Panel>
-        <Panel title="Outcomes on test batches"><Matrix2 cells={[{ label: "Caught", value: t.tp, tone: "good" }, { label: "False alarm", value: t.fp, tone: "warn" }, { label: "Missed", value: t.fn, tone: "bad" }, { label: "Correct pass", value: t.tn, tone: "accent" }]} /></Panel>
+        <Panel title="Outcomes on test batches"><Matrix2 cells={[{ label: "Failures caught", value: t.tp, tone: "good" }, { label: "Passing batches flagged", value: t.fp, tone: "warn" }, { label: "Failures missed", value: t.fn, tone: "bad" }, { label: "Passing batches cleared", value: t.tn, tone: "accent" }]} /></Panel>
       </Charts>
       <Charts>
         <Panel title="Failure rate by risk decile, %"><Bars data={dec} fmt={pct} refValue={s.failure_rate_pct} colorOf={(d) => (d.value > s.failure_rate_pct ? palette.bad : palette.muted)} /></Panel>

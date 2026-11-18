@@ -1,102 +1,82 @@
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
+import { formatFraction, formatInteger, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
+import { buildTargets } from "../lib/scorecard";
 import { targets } from "../lib/targets";
-import { Bars, Charts, Donut, Kpi, Page, Panel } from "../components/Exec";
+import { Alerts, Bars, Charts, Donut, Insights, Kpi, Page, Panel, type Tone } from "../components/Exec";
 
-type Tone = "good" | "warn" | "bad" | "accent";
-
-const rate = (m: { batches: number; failures: number }[]) =>
-  (m.reduce((a, b) => a + b.failures, 0) / Math.max(1, m.reduce((a, b) => a + b.batches, 0))) * 100;
+const rate = (m: { batches: number; failures: number }[]) => (m.reduce((a, b) => a + b.failures, 0) / Math.max(1, m.reduce((a, b) => a + b.batches, 0))) * 100;
 
 function Trend({ label, value, up, bad }: { label: string; value: string; up: boolean; bad: boolean }) {
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <div className="x-trend">
-      <Icon size={22} className={bad ? "x-c-bad" : "x-c-good"} aria-hidden="true" />
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
+    <div className="x-trend"><Icon size={22} className={bad ? "x-c-bad" : "x-c-good"} aria-hidden="true" /><strong>{value}</strong><span>{label}</span></div>
   );
 }
 
-/** One-screen executive view: five numbers, three trends, two charts, three insights, three alerts. */
+/** Mirrors the final presentation's "five things stakeholders should know", then the targets scorecard. */
 export function ExecutivePage({ data }: { data: DashboardData }) {
-  const { summary } = data;
-  const chosen = summary.classifier.test.find((r) => r.model.startsWith("Logistic")) ?? summary.classifier.test[0];
-  const f = summary.forecast;
-
-  // Failure rate: last 12 full months vs the 12 before. A part-filled final month is dropped.
-  let months = data.explore?.monthly_trend ?? [];
+  const { summary: s } = data;
+  const t = s.classifier.test.find((r) => r.model.startsWith("Logistic")) ?? s.classifier.test[0];
+  const gain = s.forecast.improvement_vs_seasonal_naive_pct;
+  const X = data.explore as unknown as { monthly_trend: { month: string; batches: number; failures: number; failure_rate_pct: number }[]; category_counts: Record<string, { level: string; failures: number }[]> };
+  let months = X.monthly_trend;
   const typical = [...months.slice(-13, -1)].map((m) => m.batches).sort((a, b) => a - b)[6] ?? 0;
   if (months.length && months[months.length - 1].batches < typical * 0.5) months = months.slice(0, -1);
-  const now = rate(months.slice(-12));
-  const delta = now - rate(months.slice(-24, -12));
   const series = months.slice(-24).map((m) => ({ month: m.month, rate: Number(m.failure_rate_pct.toFixed(2)) }));
-
+  const early = rate(X.monthly_trend.filter((m) => m.month >= "2014" && m.month < "2019")), late = rate(X.monthly_trend.filter((m) => m.month >= "2024"));
+  const failed = tableRows(data, "split_summary").reduce((a, r) => a + numberCell(r, "failed"), 0);
+  const crit = tableRows(data, "maintenance_logit").find((r) => textCell(r, "term") === "Maintenance: Critical") ?? {};
+  const scen = tableRows(data, "discount_cap_scenarios");
+  const profit = (k: string) => numberCell(scen.find((r) => textCell(r, "assumption") === k) ?? {}, "profit_change_KES") / 1e6;
+  const age = tableRows(data, "failure_rates").filter((r) => textCell(r, "factor") === "age_band"), op = tableRows(data, "failure_rates").filter((r) => textCell(r, "factor") === "operator_band");
+  const fr = (r: typeof age[number] | undefined) => (r ? numberCell(r, "failure_rate") * 100 : 0);
   const caps = tableRows(data, "capability");
   const capable = caps.filter((r) => numberCell(r, "cpk") >= targets.cpk).length;
   const worst = caps.reduce((a, b) => (numberCell(b, "cpk") < numberCell(a, "cpk") ? b : a), caps[0]);
-
-  const ageing = tableRows(data, "credit_ageing");
-  const open = ageing.reduce((a, r) => a + numberCell(r, "open_balance_KES"), 0);
-  const overYear = ageing.filter((r) => textCell(r, "bucket").startsWith("over")).reduce((a, r) => a + numberCell(r, "open_balance_KES"), 0);
-
-  const scen = tableRows(data, "discount_cap_scenarios");
-  const profit = (k: string) => numberCell(scen.find((r) => textCell(r, "assumption") === k) ?? {}, "profit_change_KES");
+  const tg = buildTargets(data), met = tg.filter((r) => r.met).length;
+  const secs = X.category_counts.manufacturing_section ?? [];
   const watch = tableRows(data, "equipment_reliability").filter((r) => textCell(r, "priority").startsWith("Watch")).length;
   const unresolved = tableRows(data, "reconciliation").filter((r) => textCell(r, "status") === "Differs").length;
-
-  const secs = ((data.explore as unknown as { category_counts: Record<string, { level: string; failures: number }[]> }).category_counts.manufacturing_section) ?? [];
-  const rows = [
-    { label: "Recall", v: chosen.recall, t: targets.recall, d: formatFraction(chosen.recall, 0), td: formatFraction(targets.recall, 0) },
-    { label: "Precision", v: chosen.precision, t: targets.precision, d: formatFraction(chosen.precision, 0), td: formatFraction(targets.precision, 0) },
-    { label: "ROC-AUC", v: chosen.roc_auc, t: targets.rocAuc, d: formatNumber(chosen.roc_auc, 2), td: formatNumber(targets.rocAuc, 2) },
-    { label: "Forecast gain", v: f.improvement_vs_seasonal_naive_pct / 30, t: targets.forecastGainPct / 30, d: `${formatNumber(f.improvement_vs_seasonal_naive_pct, 0)}%`, td: `${targets.forecastGainPct}%` },
-  ].map((r) => ({ ...r, met: r.v >= r.t }));
-  const met = rows.filter((r) => r.met).length;
-  const creditFail = summary.credit_gate.status === "FAIL";
-  const health = creditFail || capable === 0 ? { tone: "bad", text: "Needs attention" } : met === rows.length ? { tone: "good", text: "On track" } : { tone: "warn", text: "Watch" };
+  const creditFail = s.credit_gate.status === "FAIL";
+  const health: { tone: Tone; text: string } = creditFail || capable === 0 ? { tone: "bad", text: "Needs attention" } : met === tg.length ? { tone: "good", text: "On track" } : { tone: "warn", text: "Watch" };
+  const arrow = (a: number, b: number) => `${formatNumber(a, 1)}% → ${formatNumber(b, 1)}%`;
 
   return (
-    <Page title="Batch quality" status={health as { tone: Tone; text: string }}>
+    <Page title="Batch quality" status={health}>
       <section className="x-kpis">
-        <Kpi hero spark={series.map((p) => p.rate)} label="Batch failure rate" value={`${formatNumber(now, 2)}%`} sub={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts vs prior 12 months`} tone={delta > 0.1 ? "bad" : "good"} />
-        <Kpi label="Targets met" value={`${met}/${rows.length}`} sub="model and forecast" ring={{ value: met / rows.length }} tone={met === rows.length ? "good" : "warn"} />
-        <Kpi label="Sections at Cpk 1.33" value={`${capable}/${caps.length}`} sub={`worst ${formatNumber(numberCell(worst, "cpk"), 2)}`} ring={{ value: capable / caps.length }} tone={capable ? "good" : "bad"} />
-        <Kpi label="Discount cap, KES" value={`+${formatNumber(profit("none") / 1e6, 0)} m`} sub={`down to ${formatNumber(profit("all") / 1e6, 0)} m`} tone="accent" />
-        <Kpi label="Open credit, KES" value={`${formatNumber(open / 1e9, 1)} bn`} sub={`${formatFraction(overYear / open, 0)} over 1 year`} ring={{ value: overYear / open }} tone={creditFail ? "bad" : "good"} />
+        <Kpi hero spark={series.map((p) => p.rate)} label="Batches failed, full history" value={`${formatNumber(s.failure_rate_pct, 1)}%`} sub={`${formatInteger(failed)} of ${formatInteger(s.rows.batches)} batches`} tone="warn" />
+        <Kpi label="Critical maintenance odds" value={`${formatNumber(numberCell(crit, "odds_ratio"), 1)}×`} sub={`95% range ${formatNumber(numberCell(crit, "or_ci_low"), 1)} to ${formatNumber(numberCell(crit, "or_ci_high"), 1)}`} tone="bad" />
+        <Kpi label="Failures caught" value={formatFraction(t.recall, 0)} sub="flags 3 in 4 batches" ring={{ value: t.recall, target: targets.recall }} tone="warn" />
+        <Kpi label="Forecast error cut" value={`${formatNumber(gain, 0)}%`} sub={`target ${targets.forecastGainPct}%`} ring={{ value: gain / 30, target: targets.forecastGainPct / 30 }} tone="good" />
+        <Kpi label="5% discount cap, KES" value={`${formatNumber(profit("all"), 1)} m`} sub={`best case +${formatNumber(profit("none"), 1)} m`} tone="bad" />
       </section>
 
       <section className="x-trends">
-        <Trend label="Failure rate" value={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts`} up={delta >= 0} bad={delta > 0} />
-        <Trend label="Purchase cost / yr" value={`+${formatNumber(summary.cost_trend.growth_pct_per_year, 1)}%`} up bad />
-        <Trend label="Forecast vs naive" value={`+${formatNumber(f.improvement_vs_seasonal_naive_pct, 0)}%`} up bad={false} />
+        <Trend label="Failure rate, 2014-18 to 2024-26" value={arrow(early, late)} up bad />
+        <Trend label="Newest to oldest equipment" value={arrow(fr(age[0]), fr(age[age.length - 1]))} up bad />
+        <Trend label="Novice to expert operators" value={arrow(fr(op[0]), fr(op[op.length - 1]))} up={false} bad={false} />
       </section>
 
       <section className="x-charts">
         <div className="x-card">
           <h2>Failure rate, monthly %</h2>
-          <div className="x-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-                <XAxis dataKey="month" tickFormatter={(m: string) => m.slice(2)} interval={5} tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} domain={[0, "auto"]} />
-                <Tooltip formatter={(v) => `${v}%`} />
-                <ReferenceLine y={summary.failure_rate_pct} stroke={palette.muted} strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="rate" stroke={palette.accent} strokeWidth={3} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <div className="x-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+            <XAxis dataKey="month" tickFormatter={(m: string) => m.slice(2)} interval={5} tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} />
+            <YAxis tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} domain={[0, "auto"]} />
+            <Tooltip formatter={(v) => `${v}%`} />
+            <ReferenceLine y={s.failure_rate_pct} stroke={palette.muted} strokeDasharray="4 4" />
+            <Line type="monotone" dataKey="rate" stroke={palette.accent} strokeWidth={3} dot={false} />
+          </LineChart></ResponsiveContainer></div>
         </div>
         <div className="x-card">
-          <h2>Actual vs target</h2>
+          <h2>Targets: {met} of {tg.length} met</h2>
           <div className="x-bullets">
-            {rows.map((r) => (
+            {tg.map((r) => (
               <div key={r.label}>
-                <div className="x-brow"><span>{r.label}</span><strong className={r.met ? "x-c-good" : "x-c-bad"}>{r.d}</strong></div>
+                <div className="x-brow"><span>{r.label}</span><strong className={r.met ? "x-c-good" : "x-c-bad"}>{r.display}</strong></div>
                 <div className="x-bar"><i className={r.met ? "x-bg-good" : "x-bg-bad"} style={{ width: `${Math.min(100, r.v * 100)}%` }} /><b style={{ left: `${r.t * 100}%` }} /></div>
               </div>
             ))}
@@ -105,21 +85,16 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
       </section>
 
       <Charts>
-        <Panel title="Failures by section"><Donut data={secs.map((r) => ({ name: r.level, value: r.failures }))} center={`${formatInteger(secs.reduce((a, r) => a + r.failures, 0))}`} /></Panel>
+        <Panel title="Failures by section"><Donut data={secs.map((r) => ({ name: r.level, value: r.failures }))} center={formatInteger(secs.reduce((a, r) => a + r.failures, 0))} /></Panel>
         <Panel title="Cpk by section (target 1.33)"><Bars data={caps.map((r) => ({ name: textCell(r, "manufacturing_section"), value: Number(numberCell(r, "cpk").toFixed(2)) }))} fmt={(v) => formatNumber(v, 2)} refValue={targets.cpk} colorOf={(d) => (d.value >= targets.cpk ? palette.good : palette.bad)} /></Panel>
       </Charts>
 
-      <section className="x-insights">
-        <div className="x-ins x-accent"><span>Opportunity</span><p>5% discount cap: up to {formatKesMillions(profit("none"), 0)}. Pilot in one branch.</p></div>
-        <div className="x-ins x-bad"><span>Risk</span><p>No section meets Cpk 1.33. {textCell(worst, "manufacturing_section")} at {formatNumber(numberCell(worst, "cpk"), 2)}.</p></div>
-        <div className="x-ins x-warn"><span>Caution</span><p>Alerts flag {formatFraction(chosen.flag_rate, 0)} of batches. Triage aid, not a release gate.</p></div>
-      </section>
-
-      <footer className="x-alerts">
-        {creditFail && <span className="x-alert">Receivables unverified</span>}
-        {watch > 0 && <span className="x-alert">{watch} machines on watch</span>}
-        {unresolved > 0 && <span className="x-alert">{unresolved} results unreconciled</span>}
-      </footer>
+      <Insights items={[
+        { tag: "Opportunity", tone: "accent", text: `5% discount cap: up to +KES ${formatNumber(profit("none"), 1)} m. Pilot in one branch.` },
+        { tag: "Risk", tone: "bad", text: `No section meets Cpk 1.33. ${textCell(worst, "manufacturing_section")} at ${formatNumber(numberCell(worst, "cpk"), 2)}.` },
+        { tag: "Caution", tone: "warn", text: `Alerts flag ${formatFraction(t.flag_rate, 0)} of batches. They order QA review, not release.` },
+      ]} />
+      <Alerts items={[creditFail && "Receivables unverified", watch > 0 && `${watch} machines on watch`, unresolved > 0 && `${unresolved} results unreconciled`]} />
     </Page>
   );
 }

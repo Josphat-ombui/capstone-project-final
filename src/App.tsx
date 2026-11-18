@@ -14,6 +14,7 @@ const ProcessControlPage = lazy(() => import("./pages/ProcessControlPage").then(
 const ReceivablesPage = lazy(() => import("./pages/ReceivablesPage").then((module) => ({ default: module.ReceivablesPage })));
 const MarginPage = lazy(() => import("./pages/MarginPage").then((module) => ({ default: module.MarginPage })));
 const InventoryPage = lazy(() => import("./pages/InventoryPage").then((module) => ({ default: module.InventoryPage })));
+const ActionsPage = lazy(() => import("./pages/ActionsPage").then((module) => ({ default: module.ActionsPage })));
 const CostPage = lazy(() => import("./pages/CostPage").then((module) => ({ default: module.CostPage })));
 const PredictorPage = lazy(() => import("./pages/PredictorPage").then((module) => ({ default: module.PredictorPage })));
 const PrintSummaryPage = lazy(() => import("./pages/PrintSummaryPage").then((module) => ({ default: module.PrintSummaryPage })));
@@ -55,6 +56,7 @@ function Dashboard({ data, theme, onToggleTheme }: { data: DashboardData; theme:
             <Suspense fallback={<div className="state-screen" role="status"><div className="spinner" aria-hidden="true" /><p>Loading page</p></div>}>
               <Routes>
                 <Route path="/" element={<ExecutivePage data={data} />} />
+                <Route path="/actions" element={<ActionsPage data={data} />} />
                 <Route path="/summary" element={<Navigate to="/" replace />} />
                 <Route path="/exploration" element={<ExplorationPage data={data} />} />
                 <Route path="/print" element={<PrintSummaryPage data={data} />} />

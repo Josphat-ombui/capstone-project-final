@@ -20,7 +20,7 @@ export function ReceivablesPage({ data }: { data: DashboardData }) {
     <Page title="Credit and receivables" status={fail ? { tone: "bad", text: "Data unverified" } : { tone: "good", text: "Verified" }}>
       <Kpis>
         <Kpi label="Open balance, KES" value={`${formatNumber(open / 1e9, 1)} bn`} tone={fail ? "bad" : "accent"} />
-        <Kpi label="Over 1 year" value={formatFraction(old / open, 0)} ring={{ value: old / open }} tone="bad" />
+        <Kpi label="Over 1 year" value={formatFraction(old / open, 0)} sub={`KES ${formatNumber(old / 1e9, 2)} bn of ${formatNumber(open / 1e9, 2)} bn`} ring={{ value: old / open }} tone="bad" />
         <Kpi label="Open invoices" value={formatInteger(sum(age.map((r) => numberCell(r, "invoices"))))} tone="accent" />
         <Kpi label="Latest year still open" value={formatFraction(g.latest_year_open_share, 0)} ring={{ value: g.latest_year_open_share }} tone={fail ? "bad" : "good"} />
       </Kpis>

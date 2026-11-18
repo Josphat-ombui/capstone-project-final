@@ -14,6 +14,7 @@ const tabs = [
   { to: "/margin", label: "Margin" },
   { to: "/inventory", label: "Stock" },
   { to: "/costs", label: "Costs" },
+  { to: "/actions", label: "Actions" },
 ];
 
 interface LayoutProps {
