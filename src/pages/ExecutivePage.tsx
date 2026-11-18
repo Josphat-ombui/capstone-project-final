@@ -1,29 +1,42 @@
-import { useMemo } from "react";
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
-import { buildQuestions, masterRow } from "../lib/questions";
+import { formatFraction, formatKesMillions, formatNumber } from "../lib/format";
+import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
-import { Findings, Grid, Kpi, Kpis, Page, Panel, Plot, Section, TableCard, Targets, Trend, type Finding, type TargetRow, type Tone } from "../components/Dash";
-import type { ColumnSpec } from "../components/DataTable";
+import { Page } from "../components/Exec";
 
-/** Failure rate over a run of months, as a percentage of all batches in those months. */
+type Tone = "good" | "warn" | "bad" | "accent";
+
 const rate = (m: { batches: number; failures: number }[]) =>
   (m.reduce((a, b) => a + b.failures, 0) / Math.max(1, m.reduce((a, b) => a + b.batches, 0))) * 100;
 
-const summaryColumns: ColumnSpec[] = [
-  { key: "No.", label: "No.", align: "right" },
-  { key: "Question / Problem", label: "Question" },
-  { key: "Model / Method", label: "Method" },
-  { key: "Target", label: "Target" },
-  { key: "Key Result", label: "Key result" },
-  { key: "What It Means", label: "What it means" },
-];
+function Kpi({ label, value, sub, tone, hero }: { label: string; value: string; sub: string; tone: Tone; hero?: boolean }) {
+  return (
+    <div className={`x-kpi x-${tone}${hero ? " x-hero" : ""}`}>
+      <span className="x-label">{label}</span>
+      <strong className="x-value">{value}</strong>
+      <span className="x-sub">{sub}</span>
+    </div>
+  );
+}
 
+function Trend({ label, value, up, bad }: { label: string; value: string; up: boolean; bad: boolean }) {
+  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <div className="x-trend">
+      <Icon size={22} className={bad ? "x-c-bad" : "x-c-good"} aria-hidden="true" />
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** One-screen executive view: five numbers, three trends, two charts, three insights, three alerts. */
 export function ExecutivePage({ data }: { data: DashboardData }) {
   const { summary } = data;
   const chosen = summary.classifier.test.find((r) => r.model.startsWith("Logistic")) ?? summary.classifier.test[0];
   const f = summary.forecast;
-  const questions = useMemo(() => buildQuestions(data), [data]);
 
   // Failure rate: last 12 full months vs the 12 before. A part-filled final month is dropped.
   let months = data.explore?.monthly_trend ?? [];
@@ -31,7 +44,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   if (months.length && months[months.length - 1].batches < typical * 0.5) months = months.slice(0, -1);
   const now = rate(months.slice(-12));
   const delta = now - rate(months.slice(-24, -12));
-  const series = months.slice(-24).map((m) => ({ name: m.month, value: Number(m.failure_rate_pct.toFixed(2)) }));
+  const series = months.slice(-24).map((m) => ({ month: m.month, rate: Number(m.failure_rate_pct.toFixed(2)) }));
 
   const caps = tableRows(data, "capability");
   const capable = caps.filter((r) => numberCell(r, "cpk") >= targets.cpk).length;
@@ -42,66 +55,75 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   const overYear = ageing.filter((r) => textCell(r, "bucket").startsWith("over")).reduce((a, r) => a + numberCell(r, "open_balance_KES"), 0);
 
   const scen = tableRows(data, "discount_cap_scenarios");
-  const perYear = (k: string) => numberCell(scen.find((r) => textCell(r, "assumption") === k) ?? {}, "profit_change_KES_per_year");
+  const profit = (k: string) => numberCell(scen.find((r) => textCell(r, "assumption") === k) ?? {}, "profit_change_KES");
   const watch = tableRows(data, "equipment_reliability").filter((r) => textCell(r, "priority").startsWith("Watch")).length;
   const unresolved = tableRows(data, "reconciliation").filter((r) => textCell(r, "status") === "Differs").length;
 
-  const targetRows: TargetRow[] = [
-    { label: "Failures caught (recall)", actual: chosen.recall, target: targets.recall, max: 1, actualText: formatFraction(chosen.recall, 0), targetText: formatFraction(targets.recall, 0), met: chosen.recall >= targets.recall },
-    { label: "Precision of alerts", actual: chosen.precision, target: targets.precision, max: 1, actualText: formatFraction(chosen.precision, 0), targetText: formatFraction(targets.precision, 0), met: chosen.precision >= targets.precision },
-    { label: "ROC-AUC (model ranking)", actual: chosen.roc_auc, target: targets.rocAuc, max: 1, actualText: formatNumber(chosen.roc_auc, 2), targetText: formatNumber(targets.rocAuc, 2), met: chosen.roc_auc >= targets.rocAuc },
-    { label: "Forecast gain vs naive", actual: f.improvement_vs_seasonal_naive_pct, target: targets.forecastGainPct, max: 50, actualText: `${formatNumber(f.improvement_vs_seasonal_naive_pct, 0)}%`, targetText: `${targets.forecastGainPct}%`, met: f.improvement_vs_seasonal_naive_pct >= targets.forecastGainPct },
-  ];
-  const met = targetRows.filter((r) => r.met).length;
+  const rows = [
+    { label: "Recall", v: chosen.recall, t: targets.recall, d: formatFraction(chosen.recall, 0), td: formatFraction(targets.recall, 0) },
+    { label: "Precision", v: chosen.precision, t: targets.precision, d: formatFraction(chosen.precision, 0), td: formatFraction(targets.precision, 0) },
+    { label: "ROC-AUC", v: chosen.roc_auc, t: targets.rocAuc, d: formatNumber(chosen.roc_auc, 2), td: formatNumber(targets.rocAuc, 2) },
+    { label: "Forecast gain", v: f.improvement_vs_seasonal_naive_pct / 30, t: targets.forecastGainPct / 30, d: `${formatNumber(f.improvement_vs_seasonal_naive_pct, 0)}%`, td: `${targets.forecastGainPct}%` },
+  ].map((r) => ({ ...r, met: r.v >= r.t }));
+  const met = rows.filter((r) => r.met).length;
   const creditFail = summary.credit_gate.status === "FAIL";
-  const health: { tone: Tone; text: string } = creditFail || capable === 0 ? { tone: "bad", text: "Needs attention" } : met === targetRows.length ? { tone: "good", text: "On track" } : { tone: "warn", text: "Watch" };
-
-  const findings: Finding[] = [
-    { tag: "Opportunity", tone: "accent", text: `Cap discounts at ${formatNumber(summary.discount.cap_pct, 0)}%: up to ${formatKesMillions(perYear("none"), 1)} a year if no volume is lost. Pilot it in one branch first.` },
-    { tag: "Risk", tone: "bad", text: `No manufacturing section meets Cpk ${formatNumber(targets.cpk, 2)}. ${textCell(worst, "manufacturing_section")} is weakest at ${formatNumber(numberCell(worst, "cpk"), 2)}.` },
-    { tag: "Caution", tone: "warn", text: `Alerts flag ${formatFraction(chosen.flag_rate, 0)} of batches. Use them to triage batches for review, not to release or reject them.` },
-    { tag: "Costs", tone: "bad", text: `Purchase costs rise about ${formatNumber(summary.cost_trend.growth_pct_per_year, 1)}% a year, across ${formatInteger(summary.cost_trend.receipts)} receipts.` },
-  ];
+  const health = creditFail || capable === 0 ? { tone: "bad", text: "Needs attention" } : met === rows.length ? { tone: "good", text: "On track" } : { tone: "warn", text: "Watch" };
 
   return (
-    <Page
-      eyebrow="Batch quality"
-      title="Executive summary"
-      question="What were the main results, and were the targets met?"
-      status={health}
-      alerts={[creditFail && "Receivables not verified: reconcile with finance", watch > 0 && `${watch} machines on watch`, unresolved > 0 && `${unresolved} results unreconciled`]}
-    >
-      <Kpis>
-        <Kpi hero tone={delta > 0.1 ? "bad" : "good"} label="Batch failure rate, last 12 months" value={`${formatNumber(now, 2)}%`} caption={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} points vs the prior 12 months`} />
-        <Kpi tone={met === targetRows.length ? "good" : "warn"} label="Targets met" value={`${met} of ${targetRows.length}`} caption="model and forecast" />
-        <Kpi tone={capable ? "good" : "bad"} label="Sections at Cpk target" value={`${capable} of ${caps.length}`} caption={`weakest ${formatNumber(numberCell(worst, "cpk"), 2)}`} />
-        <Kpi tone="accent" label="Discount cap gain per year" value={formatKesMillions(perYear("none"), 1)} caption={`${formatKesMillions(perYear("all"), 1)} if all lift is lost`} />
-        <Kpi tone={creditFail ? "bad" : "good"} label="Open customer balances" value={`KES ${formatNumber(open / 1e9, 2)} bn`} caption={`${formatFraction(overYear / open, 0)} over one year old${creditFail ? ", not verified" : ""}`} />
-      </Kpis>
+    <Page title="Batch quality" status={health as { tone: Tone; text: string }}>
+      <section className="x-kpis">
+        <Kpi hero label="Batch failure rate" value={`${formatNumber(now, 2)}%`} sub={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts vs prior 12 months`} tone={delta > 0.1 ? "bad" : "good"} />
+        <Kpi label="Targets met" value={`${met}/${rows.length}`} sub="model and forecast" tone={met === rows.length ? "good" : "warn"} />
+        <Kpi label="Sections at Cpk 1.33" value={`${capable}/${caps.length}`} sub={`worst ${formatNumber(numberCell(worst, "cpk"), 2)}`} tone={capable ? "good" : "bad"} />
+        <Kpi label="Discount cap, KES" value={`+${formatNumber(profit("none") / 1e6, 0)} m`} sub={`down to ${formatNumber(profit("all") / 1e6, 0)} m`} tone="accent" />
+        <Kpi label="Open credit, KES" value={`${formatNumber(open / 1e9, 1)} bn`} sub={`${formatFraction(overYear / open, 0)} over 1 year`} tone={creditFail ? "bad" : "good"} />
+      </section>
 
-      <Grid cols={2}>
-        <Panel title="Batch failure rate by month, %" note="Last 24 full months. The dashed line is the overall rate for the whole period.">
-          <Plot tall>
-            <Trend data={series} fmt={(v) => `${formatNumber(v, 2)}%`} refValue={summary.failure_rate_pct} tickEvery={3} />
-          </Plot>
-        </Panel>
-        <Panel title="Actual against target" note="The bar is the result; the dark marker is the target. Green means met, red means missed.">
-          <Targets rows={targetRows} />
-        </Panel>
-      </Grid>
+      <section className="x-trends">
+        <Trend label="Failure rate" value={`${delta >= 0 ? "+" : ""}${formatNumber(delta, 2)} pts`} up={delta >= 0} bad={delta > 0} />
+        <Trend label="Purchase cost / yr" value={`+${formatNumber(summary.cost_trend.growth_pct_per_year, 1)}%`} up bad />
+        <Trend label="Forecast vs naive" value={`+${formatNumber(f.improvement_vs_seasonal_naive_pct, 0)}%`} up bad={false} />
+      </section>
 
-      <Section title="Key points" note="What the results mean for decisions.">
-        <Findings items={findings} />
-      </Section>
+      <section className="x-charts">
+        <div className="x-card">
+          <h2>Failure rate, monthly %</h2>
+          <div className="x-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+                <XAxis dataKey="month" tickFormatter={(m: string) => m.slice(2)} interval={5} tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} />
+                <YAxis tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} domain={[0, "auto"]} />
+                <Tooltip formatter={(v) => `${v}%`} />
+                <ReferenceLine y={summary.failure_rate_pct} stroke={palette.muted} strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="rate" stroke={palette.accent} strokeWidth={3} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="x-card">
+          <h2>Actual vs target</h2>
+          <div className="x-bullets">
+            {rows.map((r) => (
+              <div key={r.label}>
+                <div className="x-brow"><span>{r.label}</span><strong className={r.met ? "x-c-good" : "x-c-bad"}>{r.d}</strong></div>
+                <div className="x-bar"><i className={r.met ? "x-bg-good" : "x-bg-bad"} style={{ width: `${Math.min(100, r.v * 100)}%` }} /><b style={{ left: `${r.t * 100}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-      <TableCard
-        title="Master summary: every question"
-        note="One row per question, with the key result and what it means. Download the full table as CSV."
-        rows={questions.map(masterRow)}
-        columns={summaryColumns}
-        fileName="master-summary.csv"
-        pageSize={11}
-      />
+      <section className="x-insights">
+        <div className="x-ins x-accent"><span>Opportunity</span><p>5% discount cap: up to {formatKesMillions(profit("none"), 0)}. Pilot in one branch.</p></div>
+        <div className="x-ins x-bad"><span>Risk</span><p>No section meets Cpk 1.33. {textCell(worst, "manufacturing_section")} at {formatNumber(numberCell(worst, "cpk"), 2)}.</p></div>
+        <div className="x-ins x-warn"><span>Caution</span><p>Alerts flag {formatFraction(chosen.flag_rate, 0)} of batches. Triage aid, not a release gate.</p></div>
+      </section>
+
+      <footer className="x-alerts">
+        {creditFail && <span className="x-alert">Receivables unverified</span>}
+        {watch > 0 && <span className="x-alert">{watch} machines on watch</span>}
+        {unresolved > 0 && <span className="x-alert">{unresolved} results unreconciled</span>}
+      </footer>
     </Page>
   );
 }
