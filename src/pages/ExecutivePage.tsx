@@ -45,7 +45,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   const arrow = (a: number, b: number) => `${formatNumber(a, 1)}% → ${formatNumber(b, 1)}%`;
 
   return (
-    <Page title="Batch quality" status={health}>
+    <Page title="Executive overview" status={health}>
       <section className="x-kpis">
         <Kpi hero spark={series.map((p) => p.rate)} label="Batches failed, full history" value={`${formatNumber(s.failure_rate_pct, 1)}%`} sub={`${formatInteger(failed)} of ${formatInteger(s.rows.batches)} batches`} tone="warn" />
         <Kpi label="Critical maintenance odds" value={`${formatNumber(numberCell(crit, "odds_ratio"), 1)}×`} sub={`95% range ${formatNumber(numberCell(crit, "or_ci_low"), 1)} to ${formatNumber(numberCell(crit, "or_ci_high"), 1)}`} tone="bad" />
@@ -55,7 +55,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
       </section>
 
       <section className="x-trends">
-        <Trend label="Failure rate, 2014-18 to 2024-26" value={arrow(early, late)} up bad />
+        <Trend label="Failure rate, early vs recent" value={arrow(early, late)} up bad />
         <Trend label="Newest to oldest equipment" value={arrow(fr(age[0]), fr(age[age.length - 1]))} up bad />
         <Trend label="Novice to expert operators" value={arrow(fr(op[0]), fr(op[op.length - 1]))} up={false} bad={false} />
       </section>

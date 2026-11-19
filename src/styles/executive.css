@@ -80,4 +80,13 @@
 .x-split-bar{display:flex;gap:6px;height:100%;min-height:90px}
 .x-split-bar div{border-radius:10px;padding:16px 18px;display:grid;align-content:center;gap:4px}
 .x-split-bar span{font-size:12px;opacity:.85}
-.x-trend strong{white-space:nowrap}.x-trend{flex-wrap:wrap}
+.x-trend strong{white-space:nowrap}
+
+.x-brand{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:28px 40px 20px;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 55%,#4f46e5 100%);color:#fff}
+.x-brand h1{margin:0;font-size:clamp(24px,3.4vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.x-brand h1 em{font-style:normal;color:#a5b4fc;font-weight:600}
+.x-brand p{margin:8px 0 0;font-size:15px;color:#c7d2fe}
+.x-brand .x-theme{margin:0;color:#e0e7ff;background:rgba(255,255,255,.12);border-radius:999px;padding:10px;display:grid;place-items:center}
+.x-tabs{top:0}
+@media (max-width:900px){.x-brand{padding:20px 16px 16px}.x-brand p{font-size:13px}}
+@media print{.x-brand{background:none;color:var(--text);padding:0 0 12px}.x-brand p{color:var(--muted)}.x-brand .x-theme{display:none}}

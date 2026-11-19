@@ -29,15 +29,21 @@ interface LayoutProps {
 export function Layout({ theme, onToggleTheme, children }: LayoutProps) {
   return (
     <div className="x-shell">
+      <header className="x-brand">
+        <div>
+          <h1>Batch Quality <em>&amp;</em> Machine Reliability</h1>
+          <p>What drives batch failure, how well we can flag it, and what to do first</p>
+        </div>
+        <button type="button" className="x-theme" onClick={onToggleTheme} aria-label="Switch theme">
+          {theme === "light" ? <Moon size={20} aria-hidden="true" /> : <Sun size={20} aria-hidden="true" />}
+        </button>
+      </header>
       <nav className="x-tabs" aria-label="Main">
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.to === "/"} className={({ isActive }) => (isActive ? "x-tab active" : "x-tab")}>
             {t.label}
           </NavLink>
         ))}
-        <button type="button" className="x-theme" onClick={onToggleTheme} aria-label="Switch theme">
-          {theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
-        </button>
       </nav>
       <main>{children}</main>
     </div>
