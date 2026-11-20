@@ -1,9 +1,4 @@
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { useFilters } from "../components/FilterContext";
-import { FilterNotice } from "../components/FilterNotice";
-import { LevelChips } from "../components/ChartControls";
-import { useState } from "react";
-import { yearInRange } from "../lib/filters";
 import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
@@ -15,14 +10,11 @@ const short = (n: string, k = 24) => (n.length > k ? `${n.slice(0, k - 1)}…` :
 void [Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour, numberCell, tableRows, textCell, formatFraction, formatInteger, formatKesMillions, palette, targets, sum, pct, ex, short];
 
 export function ReceivablesPage({ data }: { data: DashboardData }) {
-  const { filters } = useFilters();
-  const [shownBuckets, setShownBuckets] = useState<string[]>([]);
   const g = data.summary.credit_gate, fail = g.status === "FAIL";
   const age = tableRows(data, "credit_ageing");
-  const ageShown = age.filter((r) => shownBuckets.length === 0 || shownBuckets.includes(textCell(r, "bucket")));
   const open = sum(age.map((r) => numberCell(r, "open_balance_KES")));
   const old = sum(age.filter((r) => textCell(r, "bucket").startsWith("over")).map((r) => numberCell(r, "open_balance_KES")));
-  const share = tableRows(data, "credit_open_share").filter((r) => yearInRange(numberCell(r, "year"), filters)).map((r) => ({ name: String(numberCell(r, "year")), value: Number((numberCell(r, "open_share") * 100).toFixed(1)) }));
+  const share = tableRows(data, "credit_open_share").map((r) => ({ name: String(numberCell(r, "year")), value: Number((numberCell(r, "open_share") * 100).toFixed(1)) }));
   const m = (r: Record<string, unknown>) => Math.round(numberCell(r as never, "open_balance_KES") / 1e6);
   return (
     <Page title="Credit and receivables" status={fail ? { tone: "bad", text: "Data unverified" } : { tone: "good", text: "Verified" }}>
@@ -32,12 +24,10 @@ export function ReceivablesPage({ data }: { data: DashboardData }) {
         <Kpi label="Open invoices" value={formatInteger(sum(age.map((r) => numberCell(r, "invoices"))))} tone="accent" />
         <Kpi label="Latest year still open" value={formatFraction(g.latest_year_open_share, 0)} ring={{ value: g.latest_year_open_share }} tone={fail ? "bad" : "good"} />
       </Kpis>
-      <FilterNotice>The open share by sale year follows the year range, and the age chips show or hide age bands. Ageing totals, the 1-year share and the balance check cover all years.</FilterNotice>
-      <LevelChips label="Age bands shown" levels={age.map((r) => textCell(r, "bucket"))} selected={shownBuckets} onChange={setShownBuckets} />
       <Charts cols={3}>
-        <Panel title="Open balance by age"><Donut data={ageShown.map((r) => ({ name: textCell(r, "bucket"), value: m(r) }))} center={`${formatNumber(sum(ageShown.map((r) => numberCell(r, "open_balance_KES"))) / 1e9, 1)} bn`} fmt={(v) => `KES ${formatInteger(v)} m`} /></Panel>
-        <Panel title="Balance by age, KES m"><Bars data={ageShown.map((r) => ({ name: textCell(r, "bucket"), value: m(r) }))} fmt={formatInteger} colorOf={(d) => (d.name.startsWith("over") ? palette.bad : palette.accent)} /></Panel>
-        <Panel title="Invoices by age"><Bars data={ageShown.map((r) => ({ name: textCell(r, "bucket"), value: numberCell(r, "invoices") }))} fmt={formatInteger} colorOf={(d) => (d.name.startsWith("over") ? palette.bad : palette.muted)} /></Panel>
+        <Panel title="Open balance by age"><Donut data={age.map((r) => ({ name: textCell(r, "bucket"), value: m(r) }))} center={`${formatNumber(open / 1e9, 1)} bn`} fmt={(v) => `KES ${formatInteger(v)} m`} /></Panel>
+        <Panel title="Balance by age, KES m"><Bars data={age.map((r) => ({ name: textCell(r, "bucket"), value: m(r) }))} fmt={formatInteger} colorOf={(d) => (d.name.startsWith("over") ? palette.bad : palette.accent)} /></Panel>
+        <Panel title="Invoices by age"><Bars data={age.map((r) => ({ name: textCell(r, "bucket"), value: numberCell(r, "invoices") }))} fmt={formatInteger} colorOf={(d) => (d.name.startsWith("over") ? palette.bad : palette.muted)} /></Panel>
       </Charts>
       <Charts cols={1}><Panel title="Share still open by sale year, %" h={240}><Area data={share} fmt={pct} tickEvery={0} id="rc" /></Panel></Charts>
       <Insights items={[{ tag: "Risk", tone: "bad", text: "Old sales look as open as new ones: payments are probably not recorded." }]} />

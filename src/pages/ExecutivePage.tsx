@@ -1,9 +1,6 @@
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { useFilters } from "../components/FilterContext";
-import { FilterNotice } from "../components/FilterNotice";
-import { failureByLevel, failureByMonth, failureTotals } from "../lib/filters";
 import { formatFraction, formatInteger, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { buildTargets } from "../lib/scorecard";
@@ -22,18 +19,15 @@ function Trend({ label, value, up, bad }: { label: string; value: string; up: bo
 /** Mirrors the final presentation's "five things stakeholders should know", then the targets scorecard. */
 export function ExecutivePage({ data }: { data: DashboardData }) {
   const { summary: s } = data;
-  const { filters } = useFilters();
-  const monthly = tableRows(data, "failure_monthly");
-  const totals = failureTotals(monthly, filters);
-  const byMonth = failureByMonth(monthly, filters);
-  const secLevels = failureByLevel(monthly, filters, "manufacturing_section");
   const t = s.classifier.test.find((r) => r.model.startsWith("Logistic")) ?? s.classifier.test[0];
   const gain = s.forecast.improvement_vs_seasonal_naive_pct;
-  let months = byMonth;
+  const X = data.explore as unknown as { monthly_trend: { month: string; batches: number; failures: number; failure_rate_pct: number }[]; category_counts: Record<string, { level: string; failures: number }[]> };
+  let months = X.monthly_trend;
   const typical = [...months.slice(-13, -1)].map((m) => m.batches).sort((a, b) => a - b)[6] ?? 0;
   if (months.length && months[months.length - 1].batches < typical * 0.5) months = months.slice(0, -1);
-  const series = months.slice(-24).map((m) => ({ month: m.month, rate: Number((m.rate * 100).toFixed(2)) }));
-  const early = rate(byMonth.filter((m) => m.month >= "2014" && m.month < "2019")), late = rate(byMonth.filter((m) => m.month >= "2024"));
+  const series = months.slice(-24).map((m) => ({ month: m.month, rate: Number(m.failure_rate_pct.toFixed(2)) }));
+  const early = rate(X.monthly_trend.filter((m) => m.month >= "2014" && m.month < "2019")), late = rate(X.monthly_trend.filter((m) => m.month >= "2024"));
+  const failed = tableRows(data, "split_summary").reduce((a, r) => a + numberCell(r, "failed"), 0);
   const crit = tableRows(data, "maintenance_logit").find((r) => textCell(r, "term") === "Maintenance: Critical") ?? {};
   const scen = tableRows(data, "discount_cap_scenarios");
   const profit = (k: string) => numberCell(scen.find((r) => textCell(r, "assumption") === k) ?? {}, "profit_change_KES") / 1e6;
@@ -43,7 +37,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
   const capable = caps.filter((r) => numberCell(r, "cpk") >= targets.cpk).length;
   const worst = caps.reduce((a, b) => (numberCell(b, "cpk") < numberCell(a, "cpk") ? b : a), caps[0]);
   const tg = buildTargets(data), met = tg.filter((r) => r.met).length;
-  const secs = secLevels;
+  const secs = X.category_counts.manufacturing_section ?? [];
   const watch = tableRows(data, "equipment_reliability").filter((r) => textCell(r, "priority").startsWith("Watch")).length;
   const unresolved = tableRows(data, "reconciliation").filter((r) => textCell(r, "status") === "Differs").length;
   const creditFail = s.credit_gate.status === "FAIL";
@@ -52,9 +46,8 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
 
   return (
     <Page title="Executive overview" status={health}>
-      <FilterNotice>The batch failure rate, the monthly trend and the section breakdown follow the filters. Targets, equipment trends, process capability and the commercial figures are full-period and do not change.</FilterNotice>
       <section className="x-kpis">
-        <Kpi hero spark={series.map((p) => p.rate)} label="Batches failed" value={`${formatNumber(totals.rate * 100, 1)}%`} sub={`${formatInteger(totals.failures)} of ${formatInteger(totals.batches)} batches`} tone="warn" />
+        <Kpi hero spark={series.map((p) => p.rate)} label="Batches failed, full history" value={`${formatNumber(s.failure_rate_pct, 1)}%`} sub={`${formatInteger(failed)} of ${formatInteger(s.rows.batches)} batches`} tone="warn" />
         <Kpi label="Critical maintenance odds" value={`${formatNumber(numberCell(crit, "odds_ratio"), 1)}×`} sub={`95% range ${formatNumber(numberCell(crit, "or_ci_low"), 1)} to ${formatNumber(numberCell(crit, "or_ci_high"), 1)}`} tone="bad" />
         <Kpi label="Failures caught" value={formatFraction(t.recall, 0)} sub="flags 3 in 4 batches" ring={{ value: t.recall, target: targets.recall }} tone="warn" />
         <Kpi label="Forecast error cut" value={`${formatNumber(gain, 0)}%`} sub={`target ${targets.forecastGainPct}%`} ring={{ value: gain / 30, target: targets.forecastGainPct / 30 }} tone="good" />
@@ -74,7 +67,7 @@ export function ExecutivePage({ data }: { data: DashboardData }) {
             <XAxis dataKey="month" tickFormatter={(m: string) => m.slice(2)} interval={5} tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} />
             <YAxis tickLine={false} axisLine={false} stroke={palette.axis} fontSize={12} domain={[0, "auto"]} />
             <Tooltip formatter={(v) => `${v}%`} />
-            <ReferenceLine y={totals.rate * 100} stroke={palette.muted} strokeDasharray="4 4" />
+            <ReferenceLine y={s.failure_rate_pct} stroke={palette.muted} strokeDasharray="4 4" />
             <Line type="monotone" dataKey="rate" stroke={palette.accent} strokeWidth={3} dot={false} />
           </LineChart></ResponsiveContainer></div>
         </div>

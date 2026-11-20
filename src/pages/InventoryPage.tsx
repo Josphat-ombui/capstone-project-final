@@ -1,7 +1,4 @@
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { useFilters } from "../components/FilterContext";
-import { FilterNotice } from "../components/FilterNotice";
-import { passesBranch } from "../lib/filters";
 import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
@@ -13,8 +10,7 @@ const short = (n: string, k = 24) => (n.length > k ? `${n.slice(0, k - 1)}…` :
 void [Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour, numberCell, tableRows, textCell, formatFraction, formatInteger, formatKesMillions, palette, targets, sum, pct, ex, short];
 
 export function InventoryPage({ data }: { data: DashboardData }) {
-  const { filters } = useFilters();
-  const c = tableRows(data, "cancelled_stock_outflows").filter((r) => passesBranch(textCell(r, "Branch_Code"), filters));
+  const c = tableRows(data, "cancelled_stock_outflows");
   const total = sum(c.map((r) => numberCell(r, "value_KES")));
   const agg = new Map<string, { v: number; o: number; u: number }>();
   c.forEach((r) => { const k = textCell(r, "Branch_Code"), a = agg.get(k) ?? { v: 0, o: 0, u: 0 }; agg.set(k, { v: a.v + numberCell(r, "value_KES"), o: a.o + numberCell(r, "orders"), u: a.u + numberCell(r, "units") }); });
@@ -24,13 +20,12 @@ export function InventoryPage({ data }: { data: DashboardData }) {
   const lead = br[0];
   return (
     <Page title="Inventory and stock" status={{ tone: "warn", text: "Cancelled outflows" }}>
-      <FilterNotice>Stock figures follow the branch filter. Batch filters such as section, dosage and years do not apply to stock data.</FilterNotice>
       <Kpis>
         <Kpi label="Cancelled value, KES" value={`${formatNumber(total / 1e9, 2)} bn`} tone="bad" />
         <Kpi label="Cancelled orders" value={formatInteger(sum(br.map((b) => b[1].o)))} tone="accent" />
         <Kpi label="Top branch share" value={formatFraction(lead[1].v / total, 0)} sub={lead[0]} ring={{ value: lead[1].v / total }} tone="warn" />
         <Kpi label="Top 8 lines share" value={formatFraction(topShare, 0)} ring={{ value: topShare }} tone="accent" />
-        <Kpi label="Items with reorder points" value={formatInteger(tableRows(data, "reorder_points").filter((r) => passesBranch(textCell(r, "Branch_Code"), filters)).length)} tone="good" />
+        <Kpi label="Items with reorder points" value={formatInteger(tableRows(data, "reorder_points").length)} tone="good" />
       </Kpis>
       <Charts cols={3}>
         <Panel title="Cancelled value by branch"><Donut data={br.map(([n, a]) => ({ name: n, value: Math.round(a.v / 1e6) }))} center={`${formatNumber(total / 1e9, 2)} bn`} fmt={(v) => `KES ${formatInteger(v)} m`} /></Panel>

@@ -1,7 +1,4 @@
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { useFilters } from "../components/FilterContext";
-import { FilterNotice } from "../components/FilterNotice";
-import { passesSection } from "../lib/filters";
 import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
@@ -13,9 +10,7 @@ const short = (n: string, k = 24) => (n.length > k ? `${n.slice(0, k - 1)}…` :
 void [Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour, numberCell, tableRows, textCell, formatFraction, formatInteger, formatKesMillions, palette, targets, sum, pct, ex, short];
 
 export function ProcessControlPage({ data }: { data: DashboardData }) {
-  const { filters } = useFilters();
-  const caps = tableRows(data, "capability").filter((r) => passesSection(textCell(r, "manufacturing_section"), filters));
-  const lim = tableRows(data, "within_limits");
+  const caps = tableRows(data, "capability"), lim = tableRows(data, "within_limits");
   const by = [...caps].sort((a, b) => numberCell(a, "cpk") - numberCell(b, "cpk"));
   const worst = by[0], best = by[by.length - 1];
   const capable = caps.filter((r) => numberCell(r, "cpk") >= targets.cpk).length;
@@ -25,7 +20,6 @@ export function ProcessControlPage({ data }: { data: DashboardData }) {
   const gap = numberCell(worst, "cp") - numberCell(worst, "cpk");
   return (
     <Page title="Process control" status={capable === caps.length ? { tone: "good", text: "Capable" } : { tone: "bad", text: "Not capable" }}>
-      <FilterNotice>Capability follows the section filter. The control-limit checks are full-period and do not change.</FilterNotice>
       <Kpis>
         <Kpi label="Sections capable" value={`${capable}/${caps.length}`} ring={{ value: capable / caps.length }} tone={capable ? "good" : "bad"} />
         <Kpi label="Worst Cpk" value={formatNumber(numberCell(worst, "cpk"), 2)} sub={textCell(worst, "manufacturing_section")} tone="bad" />

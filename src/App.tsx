@@ -1,12 +1,10 @@
 import { Suspense, lazy, useMemo } from "react";
-import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { DashboardContext, useDashboardData, type DashboardData } from "./lib/data";
 import { buildFilterOptions } from "./lib/filters";
 import { FilterProvider } from "./components/FilterContext";
 import { useTheme } from "./lib/theme";
-import { FilterBar } from "./components/FilterBar";
-import "./styles/filters.css";
 
 // Each page is its own chunk, so the first screen loads quickly.
 const ExecutivePage = lazy(() => import("./pages/ExecutivePage").then((module) => ({ default: module.ExecutivePage })));
@@ -22,13 +20,7 @@ const PredictorPage = lazy(() => import("./pages/PredictorPage").then((module) =
 const PrintSummaryPage = lazy(() => import("./pages/PrintSummaryPage").then((module) => ({ default: module.PrintSummaryPage })));
 const ExplorationPage = lazy(() => import("./pages/ExplorationPage").then((module) => ({ default: module.ExplorationPage })));
 
-/** The filter panel shows on pages whose figures respond to it. Stock uses branches only; the rest are hidden where filters would do nothing. */
-function PageFilters() {
-  const { pathname } = useLocation();
-  if (["/actions", "/exploration", "/print", "/predictor"].includes(pathname)) return null;
-  if (pathname === "/inventory") return <FilterBar mode="branch" />;
-  return <FilterBar />;
-}
+/** The filter bar applies to the failure and commercial pages only, so it is hidden where it would do nothing. */
 
 /** Shown while the exported data loads. */
 function LoadingScreen() {
@@ -61,7 +53,6 @@ function Dashboard({ data, theme, onToggleTheme }: { data: DashboardData; theme:
           <Routes>
             <Route path="*" element={
               <Layout mode={data.meta.mode} generatedAt={data.meta.generatedAt} theme={theme} onToggleTheme={onToggleTheme}>
-            <PageFilters />
             <Suspense fallback={<div className="state-screen" role="status"><div className="spinner" aria-hidden="true" /><p>Loading page</p></div>}>
               <Routes>
                 <Route path="/" element={<ExecutivePage data={data} />} />

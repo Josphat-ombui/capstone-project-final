@@ -1,5 +1,4 @@
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { FilterNotice } from "../components/FilterNotice";
 import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
 import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
@@ -21,7 +20,6 @@ export function BatchAlertsPage({ data }: { data: DashboardData }) {
   const miss = (!c.meets_precision_target_on_test ? 1 : 0) + (!c.meets_roc_auc_target_on_test ? 1 : 0);
   return (
     <Page title="Batch alerts" status={miss ? { tone: "warn", text: "Triage aid only" } : { tone: "good", text: "On target" }}>
-      <FilterNotice>Classifier results are measured on the full test period, so the batch filters do not change this page.</FilterNotice>
       <Kpis>
         <Kpi label="Batches flagged" value={formatFraction(t.flag_rate, 0)} sub={`${formatInteger(c.alerts_on_test)} of ${formatInteger(t.tp + t.fp + t.fn + t.tn)}`} ring={{ value: t.flag_rate }} tone="bad" />
         <Kpi label="Failures caught" value={formatFraction(t.recall, 0)} sub={`${t.tp} of ${t.tp + t.fn}`} ring={{ value: t.recall, target: targets.recall }} tone="good" />
