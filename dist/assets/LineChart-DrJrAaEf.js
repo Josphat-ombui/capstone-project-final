@@ -1,0 +1,1 @@
+import{_ as e,m as t}from"./data-BC-7yzsm.js";import{B as n,s as r}from"./chart-Cf-SovNy.js";var i=e(t()),a=[`axis`],o=(0,i.forwardRef)((e,t)=>i.createElement(r,{chartName:`LineChart`,defaultTooltipEventType:`axis`,validateTooltipEventTypes:a,tooltipPayloadSearcher:n,categoricalChartProps:e,ref:t}));export{o as t};
