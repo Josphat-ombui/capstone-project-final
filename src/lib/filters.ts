@@ -208,3 +208,24 @@ export function failureByYear(monthly: Row[], filters: Filters): { year: number;
     .map(([year, value]) => ({ year, ...value, rate: value.batches > 0 ? value.failures / value.batches : Number.NaN }))
     .sort((first, second) => first.year - second.year);
 }
+
+/** Batch count and failure count for each month, for rows that pass the filters, in month order. */
+export function failureByMonth(monthly: Row[], filters: Filters): { month: string; batches: number; failures: number; rate: number }[] {
+  const totals = new Map<string, { batches: number; failures: number }>();
+  for (const row of monthly) {
+    if (!passesMonthly(row, filters)) continue;
+    const month = textCell(row, "month");
+    const current = totals.get(month) ?? { batches: 0, failures: 0 };
+    current.batches += numberCell(row, "batches");
+    current.failures += numberCell(row, "failures");
+    totals.set(month, current);
+  }
+  return [...totals.entries()]
+    .map(([month, value]) => ({ month, ...value, rate: value.batches > 0 ? value.failures / value.batches : Number.NaN }))
+    .sort((first, second) => first.month.localeCompare(second.month));
+}
+
+/** True when a section passes the section filter. */
+export function passesSection(section: string, filters: Filters): boolean {
+  return filters.sections.length === 0 || filters.sections.includes(section);
+}

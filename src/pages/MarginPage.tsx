@@ -1,136 +1,48 @@
-import { BadgeDollarSign, Percent, Receipt } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "../components/Card";
-import { DataTable } from "../components/DataTable";
-import { KpiCard } from "../components/KpiCard";
-import { PageHeader } from "../components/PageHeader";
-import { Section } from "../components/Section";
-import { SectionSummary } from "../components/SectionSummary";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { formatFraction, formatKesMillions, formatNumber, formatPercent } from "../lib/format";
-import { axisProps, gridProps, tooltipContentStyle } from "../lib/chart";
-import { palette } from "../lib/palette";
-import { useState } from "react";
-import { LevelChips } from "../components/ChartControls";
 import { FilterNotice } from "../components/FilterNotice";
+import { LevelChips } from "../components/ChartControls";
+import { useState } from "react";
+import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
+import { palette } from "../lib/palette";
+import { targets } from "../lib/targets";
+import { Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour } from "../components/Exec";
+const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+const pct = (v: number) => `${formatNumber(v, 1)}%`;
+const ex = (d: DashboardData) => d.explore as unknown as Record<string, any>; // eslint-disable-line
+const short = (n: string, k = 24) => (n.length > k ? `${n.slice(0, k - 1)}…` : n);
+void [Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour, numberCell, tableRows, textCell, formatFraction, formatInteger, formatKesMillions, palette, targets, sum, pct, ex, short];
 
-/** The three volume cases of the discount policy, named by how much of the volume response is lost. */
-const caseLabels: Record<string, string> = {
-  none: "No volume loss",
-  half: "Half the volume response lost",
-  all: "All the volume response lost",
-};
+const label: Record<string, string> = { none: "No volume lost", half: "Half of lift lost", all: "All lift lost" };
 
-/** Margin and discounts: what the 5% cap would do to profit, and how margin moves with discount depth. */
 export function MarginPage({ data }: { data: DashboardData }) {
-  const [shownCases, setShownCases] = useState<string[]>([]);
   const [shownDepths, setShownDepths] = useState<string[]>([]);
-  const { summary } = data;
-  const capPct = summary.assumptions.discount_cap_pct;
-  const outTime = summary.discount.fitted_to_validation_end ?? summary.discount.full_period;
-  const scenarios = tableRows(data, "discount_cap_scenarios").map((row) => ({
-    key: textCell(row, "assumption"),
-    label: caseLabels[textCell(row, "assumption")] ?? textCell(row, "assumption"),
-    profit: numberCell(row, "profit_change_KES") / 1_000_000,
-    perYear: numberCell(row, "profit_change_KES_per_year") / 1_000_000,
-    retained: numberCell(row, "volume_retained_pct"),
-    orders: numberCell(row, "orders_capped"),
-  }));
-  const scenarioOf = (key: string) => scenarios.find((row) => row.key === key);
-  const none = scenarioOf("none");
-  const all = scenarioOf("all");
-  const half = scenarioOf("half");
-
-  const margin = tableRows(data, "margin_by_discount").map((row) => ({
-    discount: `${numberCell(row, "Discount_Pct")}%`,
-    margin: numberCell(row, "gross_margin_pct"),
-    orders: numberCell(row, "orders"),
-  }));
-
-  const scenariosShown = scenarios.filter((row) => shownCases.length === 0 || shownCases.includes(row.label));
-  const marginShown = margin.filter((row) => shownDepths.length === 0 || shownDepths.includes(row.discount));
-  const caseNames = scenarios.map((row) => row.label);
-  const depthNames = margin.map((row) => row.discount);
-
+  const d = data.summary.discount, sc = tableRows(data, "discount_cap_scenarios"), mb = tableRows(data, "margin_by_discount");
+  const mbShown = mb.filter((r) => shownDepths.length === 0 || shownDepths.includes(`${numberCell(r, "Discount_Pct")}%`));
+  const get = (k: string) => numberCell(sc.find((r) => textCell(r, "assumption") === k) ?? {}, "profit_change_KES");
+  const worst = get("all");
+  const lv = (r: Record<string, unknown>) => `${numberCell(r as never, "Discount_Pct")}%`;
+  const margins = mbShown.map((r) => Number(numberCell(r, "gross_margin_pct").toFixed(1)));
   return (
-    <>
-      <PageHeader questions={["discount"]}
-        eyebrow="Margin and discounts"
-        title={`What a ${formatNumber(capPct, 0)}% discount cap does to profit`}
-        description="The cap is tested on 2024 to 2025 orders with the volume response estimated only from 2014 to 2023, so the test period is out of sample."
-      />
-
-      <SectionSummary
-        points={[
-          `Capping discounts at ${formatNumber(capPct, 0)}% adds ${formatKesMillions((none?.profit ?? Number.NaN) * 1_000_000)} over 2024 to 2025 if no volume is lost.`,
-          `If half of the volume response is lost, the gain falls to ${formatKesMillions((half?.profit ?? Number.NaN) * 1_000_000)}. If all of it is lost, profit falls by ${formatKesMillions(Math.abs(all?.profit ?? Number.NaN) * 1_000_000)}.`,
-          `Each discount point is associated with ${formatPercent(outTime.pct_per_point, 2)} more units. The cap pays only if the volume response is smaller than the estimate allows.`,
-          "The cap is a policy choice to pilot in one branch, not a change to roll out.",
-        ]}
-      />
-
-      <FilterNotice>The chips show or hide cases and discount depths inside a chart. The discount test covers 2024 to 2025 orders, so the batch filters do not change this page.</FilterNotice>
-      <Section title="Profit under the cap" intro="Change in gross profit against the actual 2024 to 2025 policy.">
-        <KpiCard icon={BadgeDollarSign} label="No volume loss" value={formatKesMillions((none?.profit ?? Number.NaN) * 1_000_000)} hint="Upper bound on the gain" tone="good" />
-        <KpiCard icon={Receipt} label="Half the response lost" value={formatKesMillions((half?.profit ?? Number.NaN) * 1_000_000)} hint={`${formatFraction((half?.retained ?? Number.NaN) / 100, 1)} of orders kept`} tone="warn" />
-        <KpiCard icon={Percent} label="All the response lost" value={formatKesMillions((all?.profit ?? Number.NaN) * 1_000_000)} hint={`${formatFraction((all?.retained ?? Number.NaN) / 100, 1)} of orders kept`} tone={(all?.profit ?? 0) < 0 ? "bad" : "good"} />
-      </Section>
-
-      <Section title="Scenarios and margin" intro="The three volume cases, and gross margin at each discount depth.">
-        <Card title="Profit change by volume case" subtitle="Two calendar years, KES million" caption={`Volume response from the 2014 to 2023 estimate: ${formatNumber(outTime.pct_low, 2)}% to ${formatNumber(outTime.pct_high, 2)}% more units per discount point (95% interval).`}>
-          <LevelChips label="Volume cases shown" levels={caseNames} selected={shownCases} onChange={setShownCases} />
-          <div className="chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={scenariosShown}>
-                <CartesianGrid {...gridProps} />
-                <XAxis dataKey="label" {...axisProps} interval={0} tick={{ fontSize: 11 }} />
-                <YAxis {...axisProps} unit=" m" />
-                <Tooltip contentStyle={tooltipContentStyle} formatter={(value) => `KES ${formatNumber(Number(value), 1)} m`} />
-                <ReferenceLine y={0} stroke={palette.axis} />
-                <Bar dataKey="profit" name="Profit change" radius={6}>
-                  {scenarios.map((row) => (
-                    <Cell key={row.key} fill={row.profit >= 0 ? palette.good : palette.bad} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card title="Gross margin by discount depth" subtitle="Margin falls as the discount grows" caption="Bars show orders at each discount level; the line shows gross margin.">
-          <LevelChips label="Discount depths shown" levels={depthNames} selected={shownDepths} onChange={setShownDepths} />
-          <div className="chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={marginShown}>
-                <CartesianGrid {...gridProps} />
-                <XAxis dataKey="discount" {...axisProps} />
-                <YAxis yAxisId="left" {...axisProps} />
-                <YAxis yAxisId="right" orientation="right" {...axisProps} unit="%" />
-                <Tooltip contentStyle={tooltipContentStyle} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="orders" name="Orders" fill={palette.accentSoft} radius={4} />
-                <Line yAxisId="right" type="monotone" dataKey="margin" name="Gross margin" stroke={palette.bad} strokeWidth={2.5} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </Section>
-
-      <Section title="Scenario table" intro="The same figures as the chart, with orders kept and profit per year.">
-        <Card title="Discount cap scenarios" subtitle={`Cap at ${formatNumber(capPct, 0)}%, 2024 to 2025`}>
-          <DataTable
-            rows={tableRows(data, "discount_cap_scenarios")}
-            fileName="discount_cap_scenarios.csv"
-            columns={[
-              { key: "assumption", label: "Case", format: (value) => caseLabels[String(value)] ?? String(value) },
-              { key: "orders_capped", label: "Orders capped", align: "right", format: (value) => formatNumber(Number(value), 0) },
-              { key: "profit_change_KES", label: "Profit change (KES)", align: "right", format: (value) => formatNumber(Number(value), 0) },
-              { key: "profit_change_KES_per_year", label: "Per year (KES)", align: "right", format: (value) => formatNumber(Number(value), 0) },
-              { key: "volume_retained_pct", label: "Volume kept", align: "right", format: (value) => formatNumber(Number(value), 1) + "%" },
-            ]}
-            pageSize={5}
-          />
-        </Card>
-      </Section>
-    </>
+    <Page title="Margin and discounts" status={worst < 0 ? { tone: "warn", text: "Depends on volume" } : { tone: "good", text: "Upside" }}>
+      <FilterNotice>Discount figures come from the 2024 to 2025 cap test and the margin table, which cover all years, so the batch filters do not change this page. The discount-level chips show or hide levels in the charts.</FilterNotice>
+      <Kpis>
+        <Kpi label="Gross margin" value={pct(d.overall_margin_pct)} ring={{ value: d.overall_margin_pct / 100 }} tone="accent" />
+        <Kpi label="More units per point of discount" value={`+${formatNumber(d.full_period.pct_per_point, 1)}%`} ring={{ value: d.full_period.pct_per_point / 20 }} tone="good" />
+        <Kpi label="Proposed cap" value={`${formatNumber(d.cap_pct, 0)}%`} sub={`${formatInteger(numberCell(sc[0] ?? {}, "orders_capped"))} orders`} tone="accent" />
+        <Kpi label="Best case, KES" value={`+${formatNumber(get("none") / 1e6, 1)} m`} tone="good" spark={mbShown.map((r) => numberCell(r, "average_quantity"))} />
+        <Kpi label="Worst case, KES" value={`${formatNumber(worst / 1e6, 1)} m`} tone={worst < 0 ? "bad" : "good"} />
+      </Kpis>
+      <LevelChips label="Discount levels shown" levels={mb.map((r) => `${numberCell(r, "Discount_Pct")}%`)} selected={shownDepths} onChange={setShownDepths} />
+      <Charts cols={3}>
+        <Panel title="Gross margin by discount, %"><Bars data={mbShown.map((r, i) => ({ name: lv(r), value: margins[i] }))} fmt={pct} /></Panel>
+        <Panel title="Units per order by discount"><Bars data={mbShown.map((r) => ({ name: lv(r), value: Number(numberCell(r, "average_quantity").toFixed(1)) }))} fmt={(v) => formatNumber(v, 1)} colorOf={() => palette.good} /></Panel>
+        <Panel title="Orders by discount level"><Donut data={mbShown.map((r) => ({ name: lv(r), value: numberCell(r, "orders") }))} center={formatInteger(sum(mbShown.map((r) => numberCell(r, "orders"))))} fmt={formatInteger} /></Panel>
+      </Charts>
+      <Charts>
+        <Panel title="Revenue by discount, KES bn"><Bars data={mbShown.map((r) => ({ name: lv(r), value: Number((numberCell(r, "net_revenue_KES") / 1e9).toFixed(2)) }))} fmt={(v) => formatNumber(v, 2)} colorOf={() => palette.accent} /></Panel>
+        <Panel title="Cap impact on profit, KES m"><Bars data={sc.map((r) => ({ name: label[textCell(r, "assumption")] ?? textCell(r, "assumption"), value: Number((numberCell(r, "profit_change_KES") / 1e6).toFixed(1)) }))} fmt={(v) => formatNumber(v, 1)} colorOf={(x) => (x.value >= 0 ? palette.good : palette.bad)} /></Panel>
+      </Charts>
+      <Insights items={[{ tag: "Opportunity", tone: "accent", text: `Pilot the ${formatNumber(d.cap_pct, 0)}% cap in one branch.` }, { tag: "Caution", tone: "warn", text: `Each discount point lifts volume ${formatNumber(d.full_period.pct_per_point, 1)}%, but R² is ${formatNumber(d.full_period.r_squared, 2)}.` }]} />
+    </Page>
   );
 }

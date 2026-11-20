@@ -1,190 +1,48 @@
-import { useState } from "react";
-import { Factory, Gauge, Timer, Wrench } from "lucide-react";
-import { CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "../components/Card";
-import { DataTable, type ColumnSpec } from "../components/DataTable";
-import { IntervalPlot, type IntervalItem } from "../components/IntervalPlot";
-import { KpiCard } from "../components/KpiCard";
-import { PageHeader } from "../components/PageHeader";
-import { Section } from "../components/Section";
-import { SectionSummary } from "../components/SectionSummary";
-import { StatusPill } from "../components/StatusPill";
+import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
 import { useFilters } from "../components/FilterContext";
 import { FilterNotice } from "../components/FilterNotice";
-import { LevelChips } from "../components/ChartControls";
-import { type DashboardData, numberCell, tableRows, textCell, type Row } from "../lib/data";
-import { formatFraction, formatInteger, formatNumber } from "../lib/format";
-import { axisProps, gridProps, tooltipContentStyle } from "../lib/chart";
-import { palette, priorityColour } from "../lib/palette";
+import { passesSection } from "../lib/filters";
+import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
+import { palette } from "../lib/palette";
+import { targets } from "../lib/targets";
+import { Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour } from "../components/Exec";
+const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+const pct = (v: number) => `${formatNumber(v, 1)}%`;
+const ex = (d: DashboardData) => d.explore as unknown as Record<string, any>; // eslint-disable-line
+const short = (n: string, k = 24) => (n.length > k ? `${n.slice(0, k - 1)}…` : n);
+void [Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour, numberCell, tableRows, textCell, formatFraction, formatInteger, formatKesMillions, palette, targets, sum, pct, ex, short];
 
-const toneForPriority: Record<string, "bad" | "warn" | "neutral"> = { High: "bad", Watch: "warn", Standard: "neutral" };
-
-/** Equipment page: which machines fail more than expected, and how maintenance status affects failure odds. */
 export function EquipmentPage({ data }: { data: DashboardData }) {
   const { filters } = useFilters();
-  const allEquipment = tableRows(data, "equipment_reliability");
-  const [shownPriority, setShownPriority] = useState<string[]>([]);
-  const priorityLevels = ["High", "Watch", "Standard"];
-  const equipment = filters.sections.length === 0 ? allEquipment : allEquipment.filter((row) => filters.sections.includes(textCell(row, "manufacturing_section")));
-  const showPriority = (level: string) => shownPriority.length === 0 || shownPriority.includes(level);
-  const machineNames = new Set(equipment.map((row) => textCell(row, "equipment_name")));
-  const priorityOf = (row: Row) => textCell(row, "priority").split(":")[0];
-  const countByPriority = (level: string) => equipment.filter((row) => priorityOf(row) === level).length;
-  const highCount = countByPriority("High");
-  const watchCount = countByPriority("Watch");
-  const standardCount = countByPriority("Standard");
-
-  const logit = tableRows(data, "maintenance_logit");
-  const oddsItems: IntervalItem[] = logit
-    .filter((row) => textCell(row, "term") !== "Intercept")
-    .map((row) => ({
-      label: textCell(row, "term"),
-      value: numberCell(row, "odds_ratio"),
-      low: numberCell(row, "or_ci_low"),
-      high: numberCell(row, "or_ci_high"),
-    }));
-  const critical = logit.find((row) => textCell(row, "term") === "Maintenance: Critical") ?? {};
-  const dueSoon = logit.find((row) => textCell(row, "term") === "Maintenance: Due Soon") ?? {};
-
-  const scatterPoints = (level: string) =>
-    equipment
-      .filter((row) => priorityOf(row) === level)
-      .map((row) => ({
-        name: textCell(row, "equipment_name"),
-        expected: numberCell(row, "expected_failures"),
-        observed: numberCell(row, "failures"),
-      }));
-  const maxAxis = Math.max(1, ...equipment.map((row) => Math.max(numberCell(row, "expected_failures"), numberCell(row, "failures"))));
-
-  const topRatio = [...equipment]
-    .filter((row) => showPriority(priorityOf(row)))
-    .sort((first, second) => numberCell(second, "standardised_ratio") - numberCell(first, "standardised_ratio"))
-    .slice(0, 12);
-  const machineColumns: ColumnSpec[] = [
-    { key: "equipment_id", label: "Machine (masked)" },
-    { key: "equipment_name", label: "Name" },
-    { key: "manufacturing_section", label: "Section" },
-    { key: "batches", label: "Batches", align: "right", format: (value) => formatInteger(Number(value)) },
-    { key: "failures", label: "Failures", align: "right", format: (value) => formatInteger(Number(value)) },
-    { key: "standardised_ratio", label: "Observed / expected", align: "right", format: (value) => formatNumber(Number(value), 2) },
-    { key: "priority", label: "Priority" },
-  ];
-
-  const availability = tableRows(data, "availability_scenarios").filter((row) => machineNames.has(textCell(row, "equipment_name")));
-
+  const allEq = tableRows(data, "equipment_reliability");
+  const eq = allEq.filter((r) => passesSection(textCell(r, "manufacturing_section"), filters));
+  const machineNames = new Set(eq.map((r) => textCell(r, "equipment_name")));
+  const av = tableRows(data, "availability_scenarios").filter((r) => machineNames.has(textCell(r, "equipment_name")));
+  const watch = eq.filter((r) => textCell(r, "priority").startsWith("Watch")).length;
+  const high = eq.filter((r) => textCell(r, "priority").startsWith("High")).length;
+  const sig = eq.filter((r) => numberCell(r, "ratio_ci_low") > 1).length;
+  const sorted = [...eq].sort((a, b) => numberCell(b, "standardised_ratio") - numberCell(a, "standardised_ratio"));
+  const lows = [...av].sort((a, b) => numberCell(a, "availability_if_repair_8h") - numberCell(b, "availability_if_repair_8h")).slice(0, 6);
+  const low = lows[0];
+  const meanAv = sum(av.map((r) => numberCell(r, "availability_if_repair_8h"))) / av.length;
   return (
-    <>
-      <PageHeader questions={["equipment"]}
-        eyebrow="Equipment reliability"
-        title="Machines that fail more than their peers"
-        description="Batch failure is the proxy for equipment failure, because the data has no repair or downtime records. Each machine is compared with machines making the same product."
-        aside={<StatusPill tone={highCount > 0 ? "bad" : "warn"}>{`${highCount} High priority`}</StatusPill>}
-      />
-
-      <FilterNotice>Machine counts, the scatter, the ratio table and the availability table respond to the section filter. Dosage form and year are not stored per machine, and the odds ratios are full-period.</FilterNotice>
-
-      <Section title="Priority at a glance" intro="Priority is set by a statistical test: a machine is flagged only when its excess failures are unlikely to be chance.">
-        <KpiCard icon={Wrench} label="High priority machines" value={formatInteger(highCount)} hint="Machines to review first" tone={highCount > 0 ? "bad" : "good"} />
-        <KpiCard icon={Gauge} label="Watch machines" value={formatInteger(watchCount)} hint="Above expected, interval includes 1" tone="warn" />
-        <KpiCard icon={Factory} label="Standard machines" value={formatInteger(standardCount)} hint="Within the expected range" tone="neutral" />
-        <KpiCard
-          icon={Timer}
-          label="Critical maintenance odds"
-          value={`${formatNumber(numberCell(critical, "odds_ratio"), 2)}x`}
-          hint={`After adjustment. Due Soon ${formatNumber(numberCell(dueSoon, "odds_ratio"), 2)}x, no clear effect`}
-          tone="bad"
-        />
-      </Section>
-
-      <div className="grid-2">
-        <Card
-          title="Observed against expected failures"
-          subtitle="One dot per machine, coloured by priority"
-          caption={`Dots above the dashed line fail more often than machines making the same product. This run has ${highCount} High and ${watchCount} Watch machines.`}
-        >
-          <LevelChips label="Priority levels shown" levels={priorityLevels} selected={shownPriority} onChange={setShownPriority} />
-          <div className="chart chart-tall">
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 12, right: 20, left: 0, bottom: 12 }}>
-                <CartesianGrid {...gridProps} vertical />
-                <XAxis type="number" dataKey="expected" name="Expected" domain={[0, maxAxis]} {...axisProps} label={{ value: "Expected failures", position: "insideBottom", offset: -6, fill: palette.axis, fontSize: 12 }} />
-                <YAxis type="number" dataKey="observed" name="Observed" domain={[0, maxAxis]} {...axisProps} width={44} label={{ value: "Observed failures", angle: -90, position: "insideLeft", fill: palette.axis, fontSize: 12 }} />
-                <Tooltip contentStyle={tooltipContentStyle} cursor={{ strokeDasharray: "3 3" }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <ReferenceLine segment={[{ x: 0, y: 0 }, { x: maxAxis, y: maxAxis }]} stroke={palette.accent} strokeDasharray="5 4" />
-                {priorityLevels.filter(showPriority).map((level) => (
-                  <Scatter key={level} name={level} data={scatterPoints(level)} fill={priorityColour[level]} fillOpacity={0.85} />
-                ))}
-              </ScatterChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card
-          title="Adjusted odds ratios of batch failure"
-          subtitle="Compared with Current maintenance and Tablet dosage"
-          caption="Dots show the odds ratio and bars the 95% range; a range that crosses the dashed line of 1 shows no clear effect."
-        >
-          <IntervalPlot
-            items={oddsItems}
-            referenceValue={1}
-            referenceLabel="No effect"
-            logScale
-            xLabel="Odds ratio (log scale)"
-            valueFormat={(value) => formatNumber(value, 2)}
-            ariaLabel="Adjusted odds ratios of batch failure with 95 percent intervals"
-          />
-        </Card>
-      </div>
-
-      <Card
-        title="Machines with the highest observed-to-expected ratio"
-        subtitle="Top twelve, ranked by ratio"
-        caption="A ratio of 1.00 means a machine fails exactly as often as machines making the same product; the masked column keeps identities private."
-      >
-        <LevelChips label="Priority levels in this table" levels={priorityLevels} selected={shownPriority} onChange={setShownPriority} />
-        <DataTable
-          rows={topRatio}
-          columns={machineColumns}
-          fileName="equipment_top_ratio.csv"
-          pageSize={6}
-          searchKeys={["equipment_name", "manufacturing_section", "priority"]}
-          renderCell={(column, row) =>
-            column.key === "priority" ? (
-              <StatusPill tone={toneForPriority[priorityOf(row)] ?? "neutral"}>{priorityOf(row)}</StatusPill>
-            ) : undefined
-          }
-        />
-      </Card>
-
-      <Card
-        title="Availability if repairs take longer"
-        subtitle="Proxy availability under three repair times"
-        caption="Availability is estimated from failure rate per production hour, so it is a scenario rather than a measured uptime."
-      >
-        <DataTable
-          rows={availability}
-          fileName="availability_scenarios.csv"
-          pageSize={8}
-          columns={[
-            { key: "equipment_id", label: "Machine (masked)" },
-            { key: "equipment_name", label: "Name" },
-            { key: "proxy_hours_per_failure", label: "Hours per failure", align: "right", format: (value) => formatNumber(Number(value), 0) },
-            { key: "availability_if_repair_2h", label: "2 h repair", align: "right", format: (value) => formatFraction(Number(value), 1) },
-            { key: "availability_if_repair_8h", label: "8 h repair", align: "right", format: (value) => formatFraction(Number(value), 1) },
-            { key: "availability_if_repair_24h", label: "24 h repair", align: "right", format: (value) => formatFraction(Number(value), 1) },
-          ]}
-        />
-      </Card>
-
-      <SectionSummary
-        points={[
-          `Critical maintenance raises failure odds to ${formatNumber(numberCell(critical, "odds_ratio"), 2)} times Current, with a range of ${formatNumber(numberCell(critical, "or_ci_low"), 2)} to ${formatNumber(numberCell(critical, "or_ci_high"), 2)}.`,
-          `Due Soon shows odds ratio ${formatNumber(numberCell(dueSoon, "odds_ratio"), 2)}, and its range includes 1, so there is no clear effect.`,
-          `Machines by priority: ${highCount} High, ${watchCount} Watch, ${standardCount} Standard.`,
-          "Small machines have wide intervals, so read their ratios with caution.",
-        ]}
-      />
-    </>
+    <Page title="Equipment health" status={high ? { tone: "bad", text: "Action needed" } : watch ? { tone: "warn", text: "Watch list" } : { tone: "good", text: "Healthy" }}>
+      <FilterNotice>Machine figures follow the section filter. The failure-by-section chart always shows every section, so you can compare them.</FilterNotice>
+      <Kpis>
+        <Kpi label="Machines" value={String(eq.length)} tone="accent" />
+        <Kpi label="High priority" value={String(high)} ring={{ value: high / eq.length }} tone={high ? "bad" : "good"} />
+        <Kpi label="On watch" value={String(watch)} ring={{ value: watch / eq.length }} tone={watch ? "warn" : "good"} />
+        <Kpi label="Average uptime (8h repair)" value={`${formatNumber(meanAv * 100, 1)}%`} ring={{ value: meanAv }} tone="good" />
+        <Kpi label="Lowest uptime" value={`${formatNumber(numberCell(low, "availability_if_repair_8h") * 100, 0)}%`} sub={short(textCell(low, "equipment_name"), 22)} tone="warn" />
+      </Kpis>
+      <Charts cols={1}><Panel title="Failures vs expected, with 95% range (line = as expected)" h={400}><Forest rows={sorted.map((r) => ({ name: short(textCell(r, "equipment_name")), value: numberCell(r, "standardised_ratio"), lo: numberCell(r, "ratio_ci_low"), hi: numberCell(r, "ratio_ci_high"), tone: numberCell(r, "ratio_ci_low") > 1 ? "bad" : numberCell(r, "standardised_ratio") > 1 ? "warn" : "accent" }))} /></Panel></Charts>
+      <Charts cols={3}>
+        <Panel title="Machines by priority"><Donut data={[{ name: "High", value: high }, { name: "Watch", value: watch }, { name: "Standard", value: eq.length - high - watch }]} center={String(eq.length)} /></Panel>
+        <Panel title={`${short(textCell(low, "equipment_name"), 28)}: uptime by repair time, %`}><Bars data={[{ name: "2-hour repair", value: Number((numberCell(low, "availability_if_repair_2h") * 100).toFixed(1)) }, { name: "8-hour repair", value: Number((numberCell(low, "availability_if_repair_8h") * 100).toFixed(1)) }, { name: "24-hour repair", value: Number((numberCell(low, "availability_if_repair_24h") * 100).toFixed(1)) }]} fmt={pct} colorOf={(d) => (d.value < 90 ? palette.bad : d.value < 97 ? palette.warn : palette.good)} /></Panel>
+        <Panel title="Failures by section"><Bars horizontal data={[...new Set(allEq.map((r) => textCell(r, "manufacturing_section")))].map((sec) => ({ name: sec, value: sum(allEq.filter((r) => textCell(r, "manufacturing_section") === sec).map((r) => numberCell(r, "failures"))) }))} fmt={formatInteger} /></Panel>
+      </Charts>
+      <Charts cols={1}><Panel title="Uptime by repair time, lowest six machines" h={260}><GroupedBars data={lows.map((r) => ({ name: `M${textCell(r, "equipment_id").slice(-3)}`, "2h": Number((numberCell(r, "availability_if_repair_2h") * 100).toFixed(1)), "8h": Number((numberCell(r, "availability_if_repair_8h") * 100).toFixed(1)), "24h": Number((numberCell(r, "availability_if_repair_24h") * 100).toFixed(1)) }))} keys={[{ key: "2h", name: "2h" }, { key: "8h", name: "8h" }, { key: "24h", name: "24h" }]} fmt={pct} /></Panel></Charts>
+      <Insights items={[{ tag: "Signal", tone: sig ? "bad" : "good", text: sig ? `${sig} machines fail significantly above expected.` : "No machine is significantly above expected." }]} />
+    </Page>
   );
 }

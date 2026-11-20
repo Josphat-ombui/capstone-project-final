@@ -1,224 +1,45 @@
-import { useMemo, useState } from "react";
-import { Crosshair, ShieldAlert, Target } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "../components/Card";
-import { DataTable, type ColumnSpec } from "../components/DataTable";
-import { KpiCard } from "../components/KpiCard";
-import { PageHeader } from "../components/PageHeader";
-import { Section } from "../components/Section";
-import { SectionSummary } from "../components/SectionSummary";
-import { StatusPill } from "../components/StatusPill";
 import { type DashboardData, numberCell, tableRows, textCell } from "../lib/data";
-import { formatFraction, formatInteger, formatNumber, formatPercent } from "../lib/format";
-import { axisProps, gridProps, tooltipContentStyle } from "../lib/chart";
-import { palette, seriesColours } from "../lib/palette";
-import { useFilters } from "../components/FilterContext";
 import { FilterNotice } from "../components/FilterNotice";
-import { LevelChips, ClickHint, levelFromBarClick } from "../components/ChartControls";
-import { COLUMN_DIMENSION, describeFilters, failureByLevel, isFiltered, passesBatch, toggleValue, valuesOf, type BreakdownColumn } from "../lib/filters";
+import { formatFraction, formatInteger, formatKesMillions, formatNumber } from "../lib/format";
+import { palette } from "../lib/palette";
 import { targets } from "../lib/targets";
-import { ConfusionMatrixCard, RocCard } from "../components/ClassifierVisuals";
+import { Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour } from "../components/Exec";
+const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+const pct = (v: number) => `${formatNumber(v, 1)}%`;
+const ex = (d: DashboardData) => d.explore as unknown as Record<string, any>; // eslint-disable-line
+const short = (n: string, k = 24) => (n.length > k ? `${n.slice(0, k - 1)}…` : n);
+void [Alerts, Area, Bars, Charts, Curve, Donut, Forest, GroupedBars, Heat, Insights, Kpi, Kpis, Matrix2, Page, Panel, Ring, toneColour, numberCell, tableRows, textCell, formatFraction, formatInteger, formatKesMillions, palette, targets, sum, pct, ex, short];
 
-const breakdowns: { value: BreakdownColumn; label: string }[] = [
-  { value: "maintenance_status", label: "Maintenance status" },
-  { value: "dosage_form", label: "Dosage form" },
-  { value: "manufacturing_section", label: "Manufacturing section" },
-  { value: "age_band", label: "Equipment age" },
-  { value: "operator_band", label: "Operator experience" },
-];
-
-/** Batch alerts: how well the classifier separates failing batches, the predictor, and the review queue. */
 export function BatchAlertsPage({ data }: { data: DashboardData }) {
-  const { summary } = data;
-  const { filters, setFilters } = useFilters();
-  const [breakdown, setBreakdown] = useState<BreakdownColumn>("maintenance_status");
-  const [shownLevels, setShownLevels] = useState<string[]>([]);
-
-  const testRows = summary.classifier.test;
-  const chosen = testRows.find((row) => row.model.startsWith("Logistic")) ?? testRows[0];
-  const alerts = tableRows(data, "alerts_test");
-  const baseRate = summary.failure_rate_pct;
-  const decileRows = tableRows(data, "decile_lift_test");
-  const topDecile = decileRows.find((row) => numberCell(row, "decile") === 1) ?? {};
-
-  const allLevels = useMemo(() => failureByLevel(tableRows(data, "failure_monthly"), filters, breakdown).map((item) => item.level), [data, filters, breakdown]);
-  const levelRows = useMemo(
-    () =>
-      failureByLevel(tableRows(data, "failure_monthly"), filters, breakdown)
-        .filter((item) => shownLevels.length === 0 || shownLevels.includes(item.level))
-        .map((item) => ({
-          level: item.level,
-          rate: item.rate * 100,
-          batches: item.batches,
-        })),
-    [data, filters, breakdown, shownLevels],
-  );
-  const alertRows = useMemo(
-    () => alerts.filter((row) => passesBatch(textCell(row, "manufacturing_section"), textCell(row, "dosage_form"), numberCell(row, "year"), filters)),
-    [alerts, filters],
-  );
-
-  /** Clicking a bar toggles that group in the dashboard filters, so every page follows the choice. */
-  function clickLevel(level: string) {
-    const dimension = COLUMN_DIMENSION[breakdown];
-    setFilters({ ...filters, [dimension]: toggleValue(valuesOf(filters, dimension), level) });
-  }
-
-  const backtest = tableRows(data, "risk_backtest");
-  const weights = tableRows(data, "risk_weight_sensitivity");
-  const importance = [...tableRows(data, "permutation_importance")]
-    .sort((first, second) => numberCell(second, "importance_mean") - numberCell(first, "importance_mean"))
-    .slice(0, 10)
-    .map((row) => ({ label: textCell(row, "label"), importance: numberCell(row, "importance_mean") }));
-
-  const alertColumns: ColumnSpec[] = [
-    { key: "batch_id", label: "Batch", nowrap: true },
-    { key: "production_start", label: "Start" },
-    { key: "equipment_name", label: "Equipment" },
-    { key: "dosage_form", label: "Dosage form" },
-    { key: "risk_score", label: "Risk score", align: "right", format: (value) => formatNumber(Number(value), 3) },
-    { key: "driver_1", label: "Main driver" },
-    { key: "recommended_action", label: "Action" },
-  ];
-
-  const weightColumns: ColumnSpec[] = [
-    { key: "scenario", label: "Weighting" },
-    { key: "weight_quality", label: "Quality", align: "right", format: (value) => formatNumber(Number(value), 2) },
-    { key: "weight_equipment", label: "Equipment", align: "right", format: (value) => formatNumber(Number(value), 2) },
-    { key: "weight_process", label: "Process", align: "right", format: (value) => formatNumber(Number(value), 2) },
-    { key: "share_of_batches_flagged", label: "Batches flagged", align: "right", format: (value) => formatFraction(Number(value)) },
-    { key: "share_of_failures_caught", label: "Failures caught", align: "right", format: (value) => formatFraction(Number(value)) },
-  ];
-
-  const recallOk = chosen.recall >= targets.recall;
-  const precisionOk = chosen.precision >= targets.precision;
-  const aucOk = chosen.roc_auc >= targets.rocAuc;
-
+  const s = data.summary, c = s.classifier, t = c.test[0];
+  const comp = tableRows(data, "risk_backtest").find((r) => textCell(r, "rule").startsWith("Composite"));
+  const decR = tableRows(data, "decile_lift_test");
+  const dec = decR.map((r) => ({ name: `D${numberCell(r, "decile")}`, value: Number((numberCell(r, "failure_rate") * 100).toFixed(1)) }));
+  const gains = [{ x: 0, y: 0 }, ...decR.map((r, i) => ({ x: (i + 1) / decR.length, y: numberCell(r, "cumulative_share_of_failures") }))];
+  const roc = (ex(data).roc.points as { fpr: number; tpr: number }[]).map((p) => ({ x: p.fpr, y: p.tpr }));
+  const cf = comp ? numberCell(comp, "share_of_batches_flagged") : 0, cc = comp ? numberCell(comp, "share_of_failures_caught") : 0, lift = comp ? numberCell(comp, "lift_flagged_vs_base") : 0;
+  const miss = (!c.meets_precision_target_on_test ? 1 : 0) + (!c.meets_roc_auc_target_on_test ? 1 : 0);
   return (
-    <>
-      <PageHeader questions={["factors", "classifier"]}
-        eyebrow="Batch alerts"
-        title="Which batches need a quality check before release"
-        description="The classifier ranks batches for review, and the batch predictor scores one batch you describe. Both are triage tools; neither releases or rejects a batch."
-        aside={<StatusPill tone={recallOk ? "good" : "bad"}>{recallOk ? "Recall target met" : "Recall target missed"}</StatusPill>}
-      />
-
-      <SectionSummary
-        points={[
-          `The adopted logistic model catches ${formatFraction(chosen.recall, 1)} of failing batches on the 2024 to 2026 test data, against a target of ${formatFraction(targets.recall, 0)}.`,
-          `Only ${formatFraction(chosen.precision, 1)} of flagged batches fail, against a base rate of ${formatPercent(baseRate, 2)}. The precision target of ${formatFraction(targets.precision, 0)} is missed.`,
-          `ROC-AUC is ${formatNumber(chosen.roc_auc, 3)}, short of the ${formatNumber(targets.rocAuc, 2)} target. The batch-level signal is weak, so the classifier orders review rather than deciding release.`,
-          `The top decile of predicted risk fails at ${formatPercent(numberCell(topDecile, "failure_rate") * 100, 2)}, a lift of ${formatNumber(numberCell(topDecile, "lift"), 2)} over the base rate.`,
-        ]}
-      />
-
-      <Section title="Classifier against the project targets" intro="Test period 2024 to 2026. These measures cover the whole test period and do not change with the filters.">
-        <KpiCard icon={Crosshair} label="Recall" value={formatFraction(chosen.recall, 1)} hint={`Target ${formatFraction(targets.recall, 0)}`} tone={recallOk ? "good" : "bad"} />
-        <KpiCard icon={Target} label="Precision" value={formatFraction(chosen.precision, 1)} hint={`Target ${formatFraction(targets.precision, 0)}`} tone={precisionOk ? "good" : "bad"} />
-        <KpiCard icon={ShieldAlert} label="ROC-AUC" value={formatNumber(chosen.roc_auc, 3)} hint={`Target ${formatNumber(targets.rocAuc, 2)}`} tone={aucOk ? "good" : "bad"} />
-        <KpiCard icon={ShieldAlert} label="Batches flagged" value={formatFraction(chosen.flag_rate, 1)} hint={`${formatInteger(alerts.length)} alerts in the exported queue`} tone="info" />
-      </Section>
-
-      <Section title="Classifier fit" intro="Where the alerts succeed and where they misfire, on the same test period.">
-        <ConfusionMatrixCard counts={chosen} />
-        {data.explore && <RocCard points={data.explore.roc.points} auc={data.explore.roc.auc} />}
-      </Section>
-
-      <Section title="Where failures concentrate" intro="Failure rate by the groups the classifier uses. Every filter applies to this section.">
-        <Card
-          title="Failure rate by group"
-          subtitle="Share of batches that failed, with the number of batches in each group"
-          actions={
-            <select
-              aria-label="Group batches by"
-              value={breakdown}
-              onChange={(event) => {
-                setBreakdown(event.target.value as BreakdownColumn);
-                setShownLevels([]);
-              }}
-            >
-              {breakdowns.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          }
-          caption={`Current selection: ${describeFilters(filters)}.`}
-        >
-          <LevelChips label="Groups shown in this chart" levels={allLevels} selected={shownLevels} onChange={setShownLevels} />
-          {isFiltered(filters) && <FilterNotice>Filters are applied to this chart.</FilterNotice>}
-          <ClickHint>Click a bar to filter the whole dashboard to that group. Click it again to remove the filter.</ClickHint>
-          <div className="chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={levelRows}>
-                <CartesianGrid {...gridProps} />
-                <XAxis dataKey="level" {...axisProps} />
-                <YAxis {...axisProps} unit="%" />
-                <Tooltip contentStyle={tooltipContentStyle} formatter={(value) => `${formatNumber(Number(value), 2)}%`} />
-                <Bar
-                  dataKey="rate"
-                  name="Failure rate"
-                  radius={6}
-                  cursor="pointer"
-                  onClick={(entry: unknown) => {
-                    const level = levelFromBarClick(entry);
-                    if (level) clickLevel(level);
-                  }}
-                >
-                  {levelRows.map((row, index) => (
-                    <Cell
-                      key={row.level}
-                      fill={seriesColours[index % seriesColours.length]}
-                      opacity={valuesOf(filters, COLUMN_DIMENSION[breakdown]).length === 0 || valuesOf(filters, COLUMN_DIMENSION[breakdown]).includes(row.level) ? 1 : 0.35}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card title="What the classifier relies on" subtitle="Drop in ROC-AUC when each feature is shuffled on the test data" caption="Larger bars mean the classifier depends more on that feature.">
-          <FilterNotice>Full test period. Feature importance is computed once by the pipeline and does not change with filters.</FilterNotice>
-          <div className="chart chart-tall">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={importance} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <CartesianGrid {...gridProps} horizontal={false} />
-                <XAxis type="number" {...axisProps} />
-                <YAxis type="category" dataKey="label" width={190} {...axisProps} />
-                <Tooltip contentStyle={tooltipContentStyle} formatter={(value) => formatNumber(Number(value), 4)} />
-                <Bar dataKey="importance" name="ROC-AUC drop" fill={palette.accent} radius={4} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </Section>
-
-      <Section title="Rule backtest and risk weights" intro="How much of the failure burden the alert rules would catch, and how sensitive that is to the weights.">
-        <Card title="Alert rules compared" subtitle="Share of batches flagged and share of failures caught, 2024 to 2026">
-          <DataTable
-            rows={backtest}
-            fileName="risk_backtest.csv"
-            columns={[
-              { key: "rule", label: "Rule" },
-              { key: "share_of_batches_flagged", label: "Flagged", align: "right", format: (value) => formatFraction(Number(value)) },
-              { key: "share_of_failures_caught", label: "Failures caught", align: "right", format: (value) => formatFraction(Number(value)) },
-              { key: "lift_flagged_vs_base", label: "Lift", align: "right", format: (value) => formatNumber(Number(value), 2) },
-            ]}
-            pageSize={5}
-          />
-        </Card>
-        <Card title="Risk weight sensitivity" subtitle="Composite score weights for quality, equipment and process" caption="The weights are a modelling choice. Changing them moves which batches are flagged; the table shows by how much.">
-          <DataTable rows={weights} columns={weightColumns} fileName="risk_weight_sensitivity.csv" pageSize={6} />
-        </Card>
-      </Section>
-
-      <Section title="Alert queue" intro="The batches in the test period that the classifier flagged, with the main drivers for each.">
-        <Card title="Flagged batches" subtitle="Sorted by risk score; identifiers masked to the last four characters">
-          <FilterNotice>Responds to section, dosage form and production years. Maintenance and equipment age are not stored with each alert.</FilterNotice>
-          <DataTable rows={alertRows} columns={alertColumns} fileName="alerts_test.csv" pageSize={12} searchKeys={["batch_id", "equipment_name", "driver_1"]} />
-        </Card>
-      </Section>
-    </>
+    <Page title="Batch alerts" status={miss ? { tone: "warn", text: "Triage aid only" } : { tone: "good", text: "On target" }}>
+      <FilterNotice>Classifier results are measured on the full test period, so the batch filters do not change this page.</FilterNotice>
+      <Kpis>
+        <Kpi label="Batches flagged" value={formatFraction(t.flag_rate, 0)} sub={`${formatInteger(c.alerts_on_test)} of ${formatInteger(t.tp + t.fp + t.fn + t.tn)}`} ring={{ value: t.flag_rate }} tone="bad" />
+        <Kpi label="Failures caught" value={formatFraction(t.recall, 0)} sub={`${t.tp} of ${t.tp + t.fn}`} ring={{ value: t.recall, target: targets.recall }} tone="good" />
+        <Kpi label="Precision" value={formatFraction(t.precision, 0)} ring={{ value: t.precision, target: targets.precision }} tone="bad" />
+        <Kpi label="ROC-AUC" value={formatNumber(t.roc_auc, 2)} ring={{ value: t.roc_auc, target: targets.rocAuc }} tone="bad" />
+        <Kpi label="High tier lift" value={`${formatNumber(lift, 1)}x`} sub={`${formatFraction(cf, 0)} flagged, ${formatFraction(cc, 0)} caught`} tone="accent" />
+      </Kpis>
+      <Charts cols={3}>
+        <Panel title="ROC curve (dashed = chance)"><Curve points={roc} /></Panel>
+        <Panel title="Failures caught as batches are reviewed"><Curve points={gains} /></Panel>
+        <Panel title="Outcomes on test batches"><Matrix2 cells={[{ label: "Failures caught", value: t.tp, tone: "good" }, { label: "Passing batches flagged", value: t.fp, tone: "warn" }, { label: "Failures missed", value: t.fn, tone: "bad" }, { label: "Passing batches cleared", value: t.tn, tone: "accent" }]} /></Panel>
+      </Charts>
+      <Charts>
+        <Panel title="Failure rate by risk decile, %"><Bars data={dec} fmt={pct} refValue={s.failure_rate_pct} colorOf={(d) => (d.value > s.failure_rate_pct ? palette.bad : palette.muted)} /></Panel>
+        <Panel title="Share of batches vs failures"><Bars horizontal data={[{ name: "Alerts: flagged", value: t.flag_rate * 100 }, { name: "Alerts: caught", value: t.recall * 100 }, { name: "High tier: flagged", value: cf * 100 }, { name: "High tier: caught", value: cc * 100 }]} fmt={(v) => `${formatNumber(v, 0)}%`} colorOf={(d) => (d.name.endsWith("caught") ? palette.good : palette.muted)} /></Panel>
+      </Charts>
+      <Insights items={[{ tag: "Caution", tone: "warn", text: `Alerts flag ${formatFraction(t.flag_rate, 0)} of batches.` }, { tag: "Opportunity", tone: "accent", text: `High tier: ${formatFraction(cf, 0)} of batches, ${formatNumber(lift, 1)}x failure rate.` }]} />
+      <Alerts items={[!c.meets_precision_target_on_test && "Precision below target", !c.meets_roc_auc_target_on_test && "ROC-AUC below target"]} />
+    </Page>
   );
 }
